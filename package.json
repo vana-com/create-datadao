@@ -1,0 +1,47 @@
+{
+  "name": "create-datadao",
+  "description": "A CLI tool to generate and deploy DataDAOs on the Vana network",
+  "main": "bin/create-datadao.js",
+  "bin": {
+    "create-datadao": "bin/create-datadao.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "vana",
+    "datadao",
+    "blockchain",
+    "web3",
+    "cli",
+    "generator",
+    "dlp"
+  ],
+  "author": "OpenDataLabs",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^9.4.1",
+    "fs-extra": "^11.1.1",
+    "inquirer": "^8.2.5",
+    "open": "^10.1.2",
+    "ora": "^5.4.1",
+    "viem": "^2.23.11"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vana-com/create-datadao.git"
+  },
+  "homepage": "https://github.com/vana-com/create-datadao#readme",
+  "bugs": {
+    "url": "https://github.com/vana-com/create-datadao/issues"
+  }
+}

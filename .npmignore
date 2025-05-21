@@ -1,0 +1,42 @@
+# Source code (keep only the built files)
+src/
+
+# Configuration files
+.eslintrc.*
+.prettierrc*
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.circleci/
+.gitlab-ci.yml
+.travis.yml
+
+# Development files
+node_modules/
+coverage/
+.nyc_output/
+*.log
+.DS_Store
+.env
+.env.*
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Documentation that's not needed in package
+USER_EXPERIENCE_ANALYSIS.md
+
+# Test files
+test/
+tests/
+__tests__/
+*.test.js
+*.spec.js

@@ -1,0 +1,358 @@
+const fs = require('fs-extra');
+const path = require('path');
+const chalk = require('chalk');
+const inquirer = require('inquirer');
+
+/**
+ * Enhanced state management for DataDAO deployment with error recovery
+ */
+class DeploymentStateManager {
+  constructor(projectRoot = process.cwd()) {
+    this.deploymentPath = path.join(projectRoot, 'deployment.json');
+    this.state = this.loadState();
+  }
+
+  /**
+   * Load deployment state from file
+   */
+  loadState() {
+    if (!fs.existsSync(this.deploymentPath)) {
+      throw new Error('deployment.json not found. Run deployment steps in order.');
+    }
+
+    const deployment = JSON.parse(fs.readFileSync(this.deploymentPath, 'utf8'));
+
+    // Initialize state tracking if not present
+    if (!deployment.state) {
+      deployment.state = {
+        contractsDeployed: !!deployment.tokenAddress && !!deployment.proxyAddress,
+        dataDAORegistered: !!deployment.dlpId,
+        proofConfigured: false,
+        proofGitSetup: false,
+        proofPublished: false,
+        refinerConfigured: false,
+        refinerGitSetup: false,
+        refinerPublished: false,
+        uiConfigured: false
+      };
+      this.saveState(deployment);
+    }
+
+    // Add error tracking
+    if (!deployment.errors) {
+      deployment.errors = {};
+    }
+
+    return deployment;
+  }
+
+  /**
+   * Save state to file with backup
+   */
+  saveState(newState = null) {
+    const stateToSave = newState || this.state;
+    
+    // Create backup before saving
+    if (fs.existsSync(this.deploymentPath)) {
+      const backupPath = this.deploymentPath + '.backup';
+      fs.copyFileSync(this.deploymentPath, backupPath);
+    }
+    
+    fs.writeFileSync(this.deploymentPath, JSON.stringify(stateToSave, null, 2));
+    if (!newState) {
+      this.state = stateToSave;
+    }
+  }
+
+  /**
+   * Record an error for a specific step
+   */
+  recordError(step, error) {
+    this.state.errors[step] = {
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      stack: error.stack
+    };
+    this.saveState();
+  }
+
+  /**
+   * Clear error for a step
+   */
+  clearError(step) {
+    if (this.state.errors[step]) {
+      delete this.state.errors[step];
+      this.saveState();
+    }
+  }
+
+  /**
+   * Get recovery suggestions for failed steps
+   */
+  getRecoverySuggestions() {
+    const suggestions = [];
+    
+    if (this.state.errors.contractsDeployed) {
+      suggestions.push({
+        step: 'Contract Deployment',
+        issue: 'Smart contract deployment failed',
+        solutions: [
+          'Check wallet balance (need VANA tokens)',
+          'Verify network connectivity',
+          'Try again: npm run deploy:contracts'
+        ]
+      });
+    }
+
+    if (this.state.errors.dataDAORegistered) {
+      suggestions.push({
+        step: 'DataDAO Registration',
+        issue: 'Registration on Vana network failed',
+        solutions: [
+          'Ensure contracts are deployed first',
+          'Check you have 1 VANA for registration fee',
+          'Try again: npm run register:datadao'
+        ]
+      });
+    }
+
+    if (this.state.errors.proofConfigured) {
+      suggestions.push({
+        step: 'Proof Configuration',
+        issue: 'Proof of contribution setup failed',
+        solutions: [
+          'Ensure GitHub repository is set up',
+          'Check dlpId is available from registration',
+          'Try again: npm run deploy:proof'
+        ]
+      });
+    }
+
+    return suggestions;
+  }
+
+  /**
+   * Interactive recovery menu
+   */
+  async showRecoveryMenu() {
+    const suggestions = this.getRecoverySuggestions();
+    
+    if (suggestions.length === 0) {
+      console.log(chalk.green('✅ No errors detected. All steps completed successfully!'));
+      return;
+    }
+
+    console.log(chalk.yellow('\n⚠️  Issues detected in your DataDAO setup:'));
+    console.log();
+
+    for (const suggestion of suggestions) {
+      console.log(chalk.red(`❌ ${suggestion.step}: ${suggestion.issue}`));
+      console.log(chalk.blue('   Solutions:'));
+      suggestion.solutions.forEach(solution => {
+        console.log(chalk.gray(`   • ${solution}`));
+      });
+      console.log();
+    }
+
+    const { action } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'action',
+        message: 'What would you like to do?',
+        choices: [
+          { name: '🔄 Retry failed steps automatically', value: 'retry' },
+          { name: '📝 Update configuration', value: 'config' },
+          { name: '📊 Show detailed status', value: 'status' },
+          { name: '❌ Exit (fix manually)', value: 'exit' }
+        ]
+      }
+    ]);
+
+    return action;
+  }
+
+  /**
+   * Validate configuration and suggest fixes
+   */
+  validateConfiguration() {
+    const issues = [];
+
+    // Check required fields
+    const requiredFields = [
+      'dlpName', 'tokenName', 'tokenSymbol', 'privateKey', 'address'
+    ];
+
+    for (const field of requiredFields) {
+      if (!this.state[field]) {
+        issues.push(`Missing ${field}`);
+      }
+    }
+
+    // Check external service credentials
+    if (!this.state.pinataApiKey || !this.state.pinataApiSecret) {
+      issues.push('Missing Pinata credentials');
+    }
+
+    if (!this.state.googleClientId || !this.state.googleClientSecret) {
+      issues.push('Missing Google OAuth credentials');
+    }
+
+    // Check deployment state consistency
+    if (this.state.state.dataDAORegistered && !this.state.dlpId) {
+      issues.push('Marked as registered but missing dlpId');
+    }
+
+    if (this.state.state.contractsDeployed && (!this.state.tokenAddress || !this.state.proxyAddress)) {
+      issues.push('Marked as deployed but missing contract addresses');
+    }
+
+    return issues;
+  }
+
+  /**
+   * Fix common configuration issues
+   */
+  async fixConfiguration() {
+    const issues = this.validateConfiguration();
+    
+    if (issues.length === 0) {
+      console.log(chalk.green('✅ Configuration looks good!'));
+      return;
+    }
+
+    console.log(chalk.yellow('🔧 Configuration issues found:'));
+    issues.forEach(issue => console.log(`  • ${issue}`));
+    console.log();
+
+    const { shouldFix } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'shouldFix',
+        message: 'Would you like to fix these issues now?',
+        default: true
+      }
+    ]);
+
+    if (!shouldFix) return;
+
+    // Interactive fixes for each issue
+    for (const issue of issues) {
+      if (issue.includes('Pinata')) {
+        const { pinataApiKey, pinataApiSecret } = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'pinataApiKey',
+            message: 'Enter Pinata API Key:',
+            validate: input => input.trim() !== '' || 'API Key is required'
+          },
+          {
+            type: 'password',
+            name: 'pinataApiSecret',
+            message: 'Enter Pinata API Secret:',
+            validate: input => input.trim() !== '' || 'API Secret is required'
+          }
+        ]);
+
+        this.updateDeployment({ pinataApiKey, pinataApiSecret });
+        console.log(chalk.green('✅ Pinata credentials updated'));
+      }
+
+      if (issue.includes('Google OAuth')) {
+        const { googleClientId, googleClientSecret } = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'googleClientId',
+            message: 'Enter Google OAuth Client ID:',
+            validate: input => input.trim() !== '' || 'Client ID is required'
+          },
+          {
+            type: 'password',
+            name: 'googleClientSecret',
+            message: 'Enter Google OAuth Client Secret:',
+            validate: input => input.trim() !== '' || 'Client Secret is required'
+          }
+        ]);
+
+        this.updateDeployment({ googleClientId, googleClientSecret });
+        console.log(chalk.green('✅ Google OAuth credentials updated'));
+      }
+    }
+  }
+
+  /**
+   * Update specific state fields
+   */
+  updateState(updates) {
+    this.state.state = { ...this.state.state, ...updates };
+    this.saveState();
+    return this.state;
+  }
+
+  /**
+   * Update deployment data (non-state fields)
+   */
+  updateDeployment(updates) {
+    Object.assign(this.state, updates);
+    this.saveState();
+    return this.state;
+  }
+
+  /**
+   * Get current state
+   */
+  getState() {
+    return this.state;
+  }
+
+  /**
+   * Check if a step is completed
+   */
+  isCompleted(step) {
+    return !!this.state.state[step];
+  }
+
+  /**
+   * Mark a step as completed
+   */
+  markCompleted(step, data = {}) {
+    this.updateState({ [step]: true });
+    if (Object.keys(data).length > 0) {
+      this.updateDeployment(data);
+    }
+  }
+
+  /**
+   * Display current progress
+   */
+  showProgress() {
+    const steps = [
+      { key: 'contractsDeployed', name: 'Smart Contracts Deployed' },
+      { key: 'dataDAORegistered', name: 'DataDAO Registered' },
+      { key: 'proofConfigured', name: 'Proof of Contribution Configured' },
+      { key: 'proofPublished', name: 'Proof of Contribution Published' },
+      { key: 'refinerConfigured', name: 'Data Refiner Configured' },
+      { key: 'refinerPublished', name: 'Data Refiner Published' },
+      { key: 'uiConfigured', name: 'UI Configured' }
+    ];
+
+    console.log(chalk.blue('\n📋 Deployment Progress:'));
+    steps.forEach(step => {
+      const status = this.isCompleted(step.key) ?
+        chalk.green('✅') : chalk.gray('⏸️');
+      console.log(`  ${status} ${step.name}`);
+    });
+    console.log();
+  }
+
+  /**
+   * Validate required fields for a step
+   */
+  validateRequiredFields(requiredFields) {
+    const missing = requiredFields.filter(field => !this.state[field]);
+    if (missing.length > 0) {
+      throw new Error(`Missing required fields: ${missing.join(', ')}`);
+    }
+  }
+}
+
+module.exports = DeploymentStateManager;
