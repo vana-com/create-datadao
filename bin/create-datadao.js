@@ -2,55 +2,303 @@
 
 const path = require('path');
 const fs = require('fs-extra');
+const { Command } = require('commander');
 const chalk = require('chalk');
-const generator = require('../src/index');
+const inquirer = require('inquirer');
+const ora = require('ora');
+const { execSync, exec } = require('child_process');
+const { generateTemplate, guideNextSteps } = require('../lib/generator');
+const { setupConfig } = require('../lib/config');
+const { validateInput } = require('../lib/validation');
+const { deriveWalletFromPrivateKey } = require('../lib/wallet');
 
-// Get project name from command line arguments
-const projectName = process.argv[2];
+// Define CLI command
+const program = new Command();
 
-if (!projectName) {
-  console.error(chalk.red('Please specify a name for your DataDAO project:'));
-  console.log(`  ${chalk.cyan('create-datadao')} ${chalk.green('<project-name>')}`);
-  console.log();
-  console.log('For example:');
-  console.log(`  ${chalk.cyan('npx create-datadao')} ${chalk.green('my-datadao')}`);
-  process.exit(1);
-}
+program
+  .name('create-datadao')
+  .description('Generate and deploy a DataDAO on the Vana network')
+  .version('1.0.3')
+  .argument('<project-directory>', 'Directory to create the DataDAO project in')
+  .option('-y, --yes', 'Skip all confirmation prompts')
+  .option('-c, --config <file>', 'Path to configuration JSON file')
+  .action(async (projectDirectory, options) => {
+    try {
+      console.log(chalk.blue('🚀 Creating a new DataDAO project...'));
 
-const targetDir = path.resolve(process.cwd(), projectName);
+      // Create project directory
+      const targetDir = path.resolve(process.cwd(), projectDirectory);
 
-// Check if directory already exists
-if (fs.existsSync(targetDir)) {
-  console.error(chalk.red(`Error: Directory ${projectName} already exists.`));
-  process.exit(1);
-}
+      // Check if directory exists
+      if (fs.existsSync(targetDir)) {
+        const { overwrite } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'overwrite',
+            message: `Directory ${projectDirectory} already exists. Do you want to overwrite it?`,
+            default: false
+          }
+        ]);
 
-// Create the project directory
-fs.mkdirSync(targetDir);
+        if (!overwrite) {
+          console.log(chalk.yellow('Aborting DataDAO creation.'));
+          return;
+        }
 
-// Run the generator
-generator.run(targetDir)
-  .then(() => {
-    console.log();
-    console.log(chalk.green('Success!') + ' Created DataDAO project at ' + chalk.cyan(targetDir));
-    console.log();
-    console.log('Inside that directory, you can run these commands:');
-    console.log();
-    console.log('  ' + chalk.cyan('npm run setup') + '   Setup the DataDAO configuration');
-    console.log('  ' + chalk.cyan('npm run dev') + '      Start local development environment');
-    console.log('  ' + chalk.cyan('npm run deploy:all') + ' Deploy all components');
-    console.log();
-    console.log('Begin by running:');
-    console.log();
-    console.log('  ' + chalk.cyan('cd') + ' ' + projectName);
-    console.log('  ' + chalk.cyan('npm install'));
-    console.log('  ' + chalk.cyan('npm run setup'));
-    console.log();
-  })
-  .catch((err) => {
-    console.error(chalk.red('Error during generation:'));
-    console.error(err);
-    // Clean up by removing the directory
-    fs.removeSync(targetDir);
-    process.exit(1);
+        fs.emptyDirSync(targetDir);
+      }
+
+      fs.ensureDirSync(targetDir);
+
+      let config;
+
+      if (options.config) {
+        // Load configuration from file
+        const configPath = path.resolve(options.config);
+        if (!fs.existsSync(configPath)) {
+          console.error(chalk.red(`Error: Config file ${configPath} not found.`));
+          process.exit(1);
+        }
+
+        try {
+          config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          console.log(chalk.green('✓ Configuration loaded from file'));
+        } catch (error) {
+          console.error(chalk.red(`Error: Invalid JSON in config file: ${error.message}`));
+          process.exit(1);
+        }
+      } else {
+        // Interactive prompts
+        console.log('Please provide the following information for your DataDAO:');
+
+        config = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'dlpName',
+            message: 'DataDAO name:',
+            default: 'MyDataDAO',
+            validate: (input) => input.trim() !== '' || 'DataDAO name is required'
+          },
+          {
+            type: 'input',
+            name: 'tokenName',
+            message: 'Token name:',
+            default: 'MyDataToken',
+            validate: (input) => input.trim() !== '' || 'Token name is required'
+          },
+          {
+            type: 'input',
+            name: 'tokenSymbol',
+            message: 'Token symbol:',
+            default: 'MDT',
+            validate: (input) => input.trim() !== '' || 'Token symbol is required'
+          }
+        ]);
+
+        console.log(chalk.blue('\n💰 Wallet Configuration:'));
+        console.log('Your wallet is used to deploy contracts and manage your DataDAO.');
+        console.log(chalk.yellow('IMPORTANT: Use a dedicated wallet for testing purposes only.'));
+        console.log(chalk.cyan('To get a private key:'));
+        console.log('1. Go to https://privatekeys.pw/keys/ethereum/random (for testing only)');
+        console.log('2. Pick any random key from the list');
+        console.log('3. Copy the Private Key');
+        console.log('4. The address and public key will be automatically derived');
+        console.log('5. Fund the derived address with testnet VANA at https://faucet.vana.org');
+        console.log();
+
+        const walletConfig = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'privateKey',
+            message: 'Private key (0x-prefixed):',
+            validate: (input) => {
+              if (!input.startsWith('0x')) return 'Private key must start with 0x';
+              if (input.length !== 66) return 'Private key must be 64 characters (plus 0x prefix)';
+
+              // Test derivation to ensure it's valid
+              try {
+                deriveWalletFromPrivateKey(input);
+                return true;
+              } catch (error) {
+                return `Invalid private key: ${error.message}`;
+              }
+            }
+          }
+        ]);
+
+        // Derive address and public key from private key
+        console.log(chalk.blue('🔑 Deriving wallet credentials...'));
+        const derivedWallet = deriveWalletFromPrivateKey(walletConfig.privateKey);
+
+        console.log(chalk.green('✓ Wallet credentials derived successfully'));
+        console.log(chalk.cyan('Address:'), derivedWallet.address);
+        console.log(chalk.cyan('Public Key:'), derivedWallet.publicKey);
+        console.log(chalk.yellow('💡 Make sure to fund this address with testnet VANA!'));
+        console.log();
+
+        // Add derived values to wallet config
+        walletConfig.address = derivedWallet.address;
+        walletConfig.publicKey = derivedWallet.publicKey;
+
+        console.log(chalk.blue('\n📦 Pinata IPFS Setup:'));
+        console.log('Pinata is used for IPFS storage of your data schemas.');
+        console.log(chalk.cyan('Setup instructions:'));
+        console.log('1. Go to https://pinata.cloud and create an account');
+        console.log('2. Navigate to API Keys in the sidebar');
+        console.log('3. Click "New Key" → Enable Admin toggle → Create');
+        console.log('4. Copy the API Key and Secret below');
+        console.log();
+
+        const pinataConfig = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'pinataApiKey',
+            message: 'Pinata API Key:',
+            validate: (input) => input.trim() !== '' || 'Pinata API Key is required'
+          },
+          {
+            type: 'password',
+            name: 'pinataApiSecret',
+            message: 'Pinata API Secret:',
+            validate: (input) => input.trim() !== '' || 'Pinata API Secret is required'
+          }
+        ]);
+
+        console.log(chalk.blue('\n🔐 Google OAuth Setup:'));
+        console.log('Google OAuth enables users to connect their Google Drive accounts.');
+        console.log(chalk.cyan('Setup instructions:'));
+        console.log('1. Go to https://console.cloud.google.com');
+        console.log('2. Create a new project or select existing one');
+        console.log('3. Go to APIs & Services → OAuth consent screen');
+        console.log('4. Choose "External" → Fill required fields → Save');
+        console.log('5. Go to APIs & Services → Credentials');
+        console.log('6. Click "Create Credentials" → "OAuth Client ID"');
+        console.log('7. Choose "Web Application"');
+        console.log('8. Add Authorized JavaScript origins: http://localhost:3000');
+        console.log('9. Add Redirect URIs: http://localhost:3000/api/auth/callback/google');
+        console.log('10. Go to APIs & Services → Library → Enable "Google Drive API"');
+        console.log('11. Copy the Client ID and Client Secret below');
+        console.log();
+
+        const googleConfig = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'googleClientId',
+            message: 'Google OAuth Client ID:',
+            validate: (input) => input.trim() !== '' || 'Google OAuth Client ID is required'
+          },
+          {
+            type: 'password',
+            name: 'googleClientSecret',
+            message: 'Google OAuth Client Secret:',
+            validate: (input) => input.trim() !== '' || 'Google OAuth Client Secret is required'
+          }
+        ]);
+
+        console.log(chalk.blue('\n🐙 GitHub Integration:'));
+        console.log('Your GitHub username is needed for forking the template repositories.');
+        console.log(chalk.cyan('Note: You\'ll need to manually fork and enable GitHub Actions later.'));
+        console.log();
+
+        const githubConfig = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'githubUsername',
+            message: 'GitHub username:',
+            validate: (input) => input.trim() !== '' || 'GitHub username is required'
+          }
+        ]);
+
+        // Merge all configurations
+        config = {
+          ...config,
+          ...walletConfig,
+          ...pinataConfig,
+          ...googleConfig,
+          ...githubConfig
+        };
+      }
+
+      // Validate input
+      validateInput(config);
+
+      // Generate project from template
+      const spinner = ora('Generating project structure...').start();
+      await generateTemplate(targetDir, config);
+      spinner.succeed('Project structure generated successfully');
+
+      console.log(chalk.green('✅ DataDAO project created successfully!'));
+      console.log();
+
+      // Continue with automatic setup and deployment
+      console.log(chalk.blue('🔄 Continuing with automatic setup and deployment...'));
+      console.log();
+
+      // Change to project directory for subsequent commands
+      process.chdir(targetDir);
+
+      // Step 1: Setup dependencies
+      console.log(chalk.blue('📦 Installing dependencies...'));
+      const setupSpinner = ora('Installing contract and UI dependencies').start();
+      try {
+        execSync('npm install', { stdio: 'pipe' });
+        execSync('npm install', { cwd: 'contracts', stdio: 'pipe' });
+        execSync('npm install', { cwd: 'ui', stdio: 'pipe' });
+        setupSpinner.succeed('Dependencies installed successfully');
+      } catch (error) {
+        setupSpinner.fail('Failed to install dependencies');
+        console.error(chalk.red('Error installing dependencies:'), error.message);
+        console.log(chalk.yellow('You can continue manually with: npm run setup'));
+        return;
+      }
+
+      // Step 2: Deploy contracts
+      console.log(chalk.blue('🚀 Deploying smart contracts...'));
+      const deploySpinner = ora('Deploying contracts to Moksha testnet').start();
+      try {
+        execSync('node scripts/deploy-contracts.js', { stdio: 'pipe' });
+        deploySpinner.succeed('Smart contracts deployed successfully');
+      } catch (error) {
+        deploySpinner.fail('Failed to deploy contracts');
+        console.error(chalk.red('Error deploying contracts:'), error.message);
+        console.log(chalk.yellow('Check that your wallet has sufficient VANA tokens'));
+        console.log(chalk.yellow('You can continue manually with: npm run deploy:contracts'));
+        return;
+      }
+
+      // Step 3: Show status
+      console.log(chalk.blue('📊 Checking deployment status...'));
+      try {
+        execSync('node scripts/status.js', { stdio: 'inherit' });
+      } catch (error) {
+        console.log(chalk.yellow('Status check failed, but continuing...'));
+      }
+
+      console.log();
+      console.log(chalk.green('✅ Smart contracts deployed successfully!'));
+      console.log();
+      console.log(chalk.blue('📊 Current Status:'));
+      console.log('  ✅ Smart contracts deployed');
+      console.log('  ⏸️  DataDAO registration (next step)');
+      console.log('  ⏸️  GitHub repositories setup');
+      console.log('  ⏸️  Full end-to-end testing');
+      console.log();
+      console.log(chalk.blue('🎯 What you can do now:'));
+      console.log('  • ' + chalk.cyan('npm run ui:dev') + ' - Test the basic UI');
+      console.log('  • ' + chalk.cyan('npm run status') + ' - Check deployment status');
+      console.log('  • ' + chalk.cyan('npm run configure') + ' - Update credentials');
+      console.log();
+      console.log(chalk.yellow('⚠️  Note: Full DataDAO functionality requires completing all setup steps'));
+      console.log();
+
+      // Guide user through next steps
+      await guideNextSteps(targetDir, config);
+
+    } catch (error) {
+      console.error(chalk.red('Error creating DataDAO project:'));
+      console.error(error.message);
+      process.exit(1);
+    }
   });
+
+program.parse(process.argv);

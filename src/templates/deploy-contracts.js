@@ -19,9 +19,9 @@ async function deployContracts() {
       process.exit(1);
     }
 
-    // Execute Hardhat deployment
+    // Execute Hardhat deployment with force flag to prevent reusing existing contracts
     console.log(chalk.blue('Running deployment command...'));
-    const { stdout, stderr } = await execPromise('npx hardhat deploy --network moksha --tags DLPDeploy', {
+    const { stdout, stderr } = await execPromise('npx hardhat deploy --reset --network moksha --tags DLPDeploy', {
       cwd: path.join(process.cwd(), 'contracts'),
     });
 
@@ -31,12 +31,18 @@ async function deployContracts() {
       console.error(chalk.yellow('Deployment warnings:'), stderr);
     }
 
-    // Extract contract addresses from output
-    const tokenAddressMatch = stdout.match(/Token Address:\s*(\w+)/);
-    const proxyAddressMatch = stdout.match(/Proxy deployed to:\s*(\w+)/);
+    // Extract contract addresses from output - support both "deployed" and "reusing" patterns
+    const tokenAddressMatch =
+      stdout.match(/deploying "DAT"[\s\S]*?deployed at (0x[a-fA-F0-9]{40})/) ||
+      stdout.match(/reusing "DAT" at (0x[a-fA-F0-9]{40})/);
+
+    const proxyAddressMatch =
+      stdout.match(/deploying "DataLiquidityPoolProxy"[\s\S]*?deployed at (0x[a-fA-F0-9]{40})/) ||
+      stdout.match(/reusing "DataLiquidityPoolProxy" at (0x[a-fA-F0-9]{40})/);
 
     if (!tokenAddressMatch || !proxyAddressMatch) {
       console.error(chalk.red('Error: Failed to extract contract addresses from deployment output.'));
+      console.error(chalk.yellow('Please check deployment logs above for contract addresses.'));
       process.exit(1);
     }
 

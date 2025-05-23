@@ -30,7 +30,7 @@ async function registerDataDAO() {
     console.log(chalk.blue('Please register your DataDAO using the following information:'));
     console.log();
     console.log(chalk.yellow('1. Visit DLPRegistryProxy contract on VanaScan:'));
-    console.log(chalk.cyan('   https://moksha.vanascan.io/address/0xA6dFc0ef21D91F166Ca51c731D1a115a5b715a3F'));
+    console.log(chalk.cyan('   https://moksha.vanascan.io/address/0x4D59880a924526d1dD33260552Ff4328b1E18a43'));
     console.log();
     console.log(chalk.yellow('2. Connect your wallet'));
     console.log();

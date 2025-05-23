@@ -1,26 +1,26 @@
 {
   "name": "create-datadao",
-  "version": "0.1.0",
-  "description": "Generator for Vana DataDAO projects",
-  "main": "src/index.js",
+  "version": "1.0.3",
+  "description": "A CLI tool to generate and deploy DataDAOs on the Vana network",
+  "main": "bin/create-datadao.js",
   "bin": {
-    "create-datadao": "./bin/create-datadao.js"
+    "create-datadao": "bin/create-datadao.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [
-    "vana",
-    "datadao",
-    "generator",
-    "blockchain"
-  ],
   "author": "Vana",
   "license": "MIT",
   "dependencies": {
     "chalk": "^4.1.2",
+    "commander": "^10.0.1",
     "fs-extra": "^11.1.1",
     "inquirer": "^8.2.5",
-    "viem": "^1.19.9"
+    "open": "^10.1.2",
+    "ora": "^5.4.1",
+    "viem": "^2.23.11"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
