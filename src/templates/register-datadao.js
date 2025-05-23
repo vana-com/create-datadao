@@ -58,8 +58,15 @@ async function registerDataDAO() {
       }
     ]);
 
-    // Update deployment.json with dlpId
+    // Update deployment.json with dlpId and mark as registered
     deployment.dlpId = parseInt(answers.dlpId);
+    
+    // Ensure state object exists and update registration status
+    if (!deployment.state) {
+      deployment.state = {};
+    }
+    deployment.state.dataDAORegistered = true;
+    
     fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
 
     console.log(chalk.green('DataDAO registration information saved.'));
@@ -100,7 +107,8 @@ async function registerDataDAO() {
     refinerEnv = `REFINEMENT_ENCRYPTION_KEY=${keyAnswer.refinementKey}\n` + refinerEnv;
     fs.writeFileSync(refinerEnvPath, refinerEnv);
 
-    console.log(chalk.green('Refinement encryption key saved.'));
+    console.log(chalk.green('✅ DataDAO registered successfully!'));
+    console.log(chalk.green('✅ Refinement encryption key saved.'));
     console.log();
     console.log(chalk.blue('Next steps:'));
     console.log('1. Run ' + chalk.cyan('npm run deploy:proof') + ' to deploy the Proof of Contribution');

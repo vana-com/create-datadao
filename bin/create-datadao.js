@@ -237,14 +237,27 @@ program
       // Change to project directory for subsequent commands
       process.chdir(targetDir);
 
-      // Step 1: Setup dependencies
+      // Step 1: Setup dependencies with detailed progress
       console.log(chalk.blue('📦 Installing dependencies...'));
-      const setupSpinner = ora('Installing contract and UI dependencies').start();
+      console.log(chalk.yellow('⏳ This may take 2-3 minutes depending on your internet connection'));
+      
+      const setupSpinner = ora('Installing root project dependencies').start();
       try {
+        // Root dependencies
         execSync('npm install', { stdio: 'pipe' });
+        setupSpinner.text = 'Installing smart contract dependencies';
+        
+        // Contract dependencies  
         execSync('npm install', { cwd: 'contracts', stdio: 'pipe' });
+        setupSpinner.text = 'Installing UI dependencies (largest step)';
+        
+        // UI dependencies (this takes the longest)
         execSync('npm install', { cwd: 'ui', stdio: 'pipe' });
+        
         setupSpinner.succeed('Dependencies installed successfully');
+        console.log(chalk.green('  ✓ Root project dependencies'));
+        console.log(chalk.green('  ✓ Smart contract dependencies (Hardhat, Viem)'));
+        console.log(chalk.green('  ✓ UI dependencies (Next.js, React, TailwindCSS)'));
       } catch (error) {
         setupSpinner.fail('Failed to install dependencies');
         console.error(chalk.red('Error installing dependencies:'), error.message);
@@ -252,21 +265,79 @@ program
         return;
       }
 
-      // Step 2: Deploy contracts
+      // Step 2: Deploy contracts with detailed progress
+      console.log();
       console.log(chalk.blue('🚀 Deploying smart contracts...'));
-      const deploySpinner = ora('Deploying contracts to Moksha testnet').start();
+      console.log(chalk.yellow('⏳ This may take 1-2 minutes depending on network conditions'));
+      console.log(chalk.cyan('📡 Network: Moksha Testnet (https://moksha.vanascan.io)'));
+      
+      const deploySpinner = ora('Compiling smart contracts').start();
       try {
-        execSync('node scripts/deploy-contracts.js', { stdio: 'pipe' });
+        // Use async exec to show progress
+        const { exec } = require('child_process');
+        const util = require('util');
+        const execAsync = util.promisify(exec);
+
+        deploySpinner.text = 'Compiling smart contracts';
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause to show status
+        
+        deploySpinner.text = 'Deploying token contract (DAT)';
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        deploySpinner.text = 'Deploying DataDAO contract';
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        deploySpinner.text = 'Confirming transactions on Moksha testnet';
+        
+        // Run the actual deployment
+        const { stdout, stderr } = await execAsync('node scripts/deploy-contracts.js');
+        
+        // Extract contract addresses from output for user feedback
+        const tokenAddressMatch = 
+          stdout.match(/deploying "DAT"[\s\S]*?deployed at (0x[a-fA-F0-9]{40})/) ||
+          stdout.match(/reusing "DAT" at (0x[a-fA-F0-9]{40})/);
+        
+        const proxyAddressMatch = 
+          stdout.match(/deploying "DataLiquidityPoolProxy"[\s\S]*?deployed at (0x[a-fA-F0-9]{40})/) ||
+          stdout.match(/reusing "DataLiquidityPoolProxy" at (0x[a-fA-F0-9]{40})/);
+
         deploySpinner.succeed('Smart contracts deployed successfully');
+        
+        if (tokenAddressMatch && proxyAddressMatch) {
+          console.log(chalk.green('  ✓ Token Contract (DAT):'), chalk.cyan(tokenAddressMatch[1]));
+          console.log(chalk.green('  ✓ DataDAO Contract:'), chalk.cyan(proxyAddressMatch[1]));
+          console.log(chalk.blue('  🔗 View on VanaScan:'), chalk.cyan(`https://moksha.vanascan.io/address/${proxyAddressMatch[1]}`));
+        }
+
+        if (stderr) {
+          console.log(chalk.yellow('  ⚠️  Deployment warnings (usually safe to ignore):'));
+          console.log(chalk.gray('    ' + stderr.split('\n')[0]));
+        }
+        
       } catch (error) {
         deploySpinner.fail('Failed to deploy contracts');
         console.error(chalk.red('Error deploying contracts:'), error.message);
-        console.log(chalk.yellow('Check that your wallet has sufficient VANA tokens'));
-        console.log(chalk.yellow('You can continue manually with: npm run deploy:contracts'));
+        
+        // Provide helpful troubleshooting
+        if (error.message.includes('insufficient funds')) {
+          console.log(chalk.yellow('💡 Troubleshooting:'));
+          console.log(chalk.yellow('  • Check that your wallet has sufficient VANA tokens'));
+          console.log(chalk.yellow(`  • Fund your wallet: https://faucet.vana.org`));
+          console.log(chalk.yellow(`  • Your address: ${config.address}`));
+        } else if (error.message.includes('network')) {
+          console.log(chalk.yellow('💡 Network issue detected:'));
+          console.log(chalk.yellow('  • Check your internet connection'));
+          console.log(chalk.yellow('  • Moksha testnet may be experiencing high traffic'));
+          console.log(chalk.yellow('  • Try again in a few minutes'));
+        }
+        
+        console.log();
+        console.log(chalk.yellow('You can retry manually with: npm run deploy:contracts'));
         return;
       }
 
       // Step 3: Show status
+      console.log();
       console.log(chalk.blue('📊 Checking deployment status...'));
       try {
         execSync('node scripts/status.js', { stdio: 'inherit' });

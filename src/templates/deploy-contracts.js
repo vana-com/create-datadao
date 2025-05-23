@@ -53,7 +53,7 @@ async function deployContracts() {
     console.log(chalk.blue('Token Address:'), tokenAddress);
     console.log(chalk.blue('Proxy Address:'), proxyAddress);
 
-    // Save to deployment.json
+    // Save to deployment.json and update state
     const deploymentPath = path.join(process.cwd(), 'deployment.json');
     let deployment = {};
 
@@ -63,6 +63,12 @@ async function deployContracts() {
 
     deployment.tokenAddress = tokenAddress;
     deployment.proxyAddress = proxyAddress;
+    
+    // Update state to mark contracts as deployed
+    if (!deployment.state) {
+      deployment.state = {};
+    }
+    deployment.state.contractsDeployed = true;
 
     fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
 

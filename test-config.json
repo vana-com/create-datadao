@@ -1,0 +1,11 @@
+{
+  "dlpName": "TestDataDAO",
+  "tokenName": "TestToken",
+  "tokenSymbol": "TEST",
+  "privateKey": "0xce70b9e610961e9d96ff1e49852ac675857e74d467f53639b12cd7e0126254df",
+  "pinataApiKey": "test_pinata_key",
+  "pinataApiSecret": "test_pinata_secret",
+  "googleClientId": "test_google_client_id",
+  "googleClientSecret": "test_google_client_secret",
+  "githubUsername": "testuser"
+} 
