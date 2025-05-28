@@ -21,21 +21,31 @@ function showStatus() {
     console.log(chalk.cyan('  Token:'), deployment.tokenName ? `${deployment.tokenName} (${deployment.tokenSymbol})` : 'Not deployed');
     console.log(chalk.cyan('  Owner:'), deployment.address || 'Not set');
     console.log(chalk.cyan('  GitHub:'), deployment.githubUsername || 'Not set');
-
-    if (deployment.tokenAddress) {
-      console.log(chalk.cyan('  Token Contract:'), deployment.tokenAddress);
-    }
-    if (deployment.proxyAddress) {
-      console.log(chalk.cyan('  DLP Contract:'), deployment.proxyAddress);
-    }
-    if (deployment.dlpId) {
-      console.log(chalk.cyan('  DLP ID:'), deployment.dlpId);
-    }
-    if (deployment.refinerId) {
-      console.log(chalk.cyan('  Refiner ID:'), deployment.refinerId);
-    }
-
     console.log();
+
+    // Contract addresses section
+    if (deployment.tokenAddress || deployment.proxyAddress) {
+      console.log(chalk.blue('📋 Contract Addresses:'));
+      if (deployment.tokenAddress) {
+        console.log(chalk.cyan('  Token Contract:'), deployment.tokenAddress);
+      }
+      if (deployment.proxyAddress) {
+        console.log(chalk.cyan('  DLP Contract:'), deployment.proxyAddress);
+      }
+      console.log();
+    }
+
+    // IDs section
+    if (deployment.dlpId || deployment.refinerId) {
+      console.log(chalk.blue('📋 Network IDs:'));
+      if (deployment.dlpId) {
+        console.log(chalk.cyan('  DLP ID:'), deployment.dlpId);
+      }
+      if (deployment.refinerId) {
+        console.log(chalk.cyan('  Refiner ID:'), deployment.refinerId);
+      }
+      console.log();
+    }
 
     // Determine next step
     const state = deployment.state;

@@ -407,8 +407,8 @@ async function deployRefiner() {
 
           console.log(chalk.yellow('⚠️  On-chain registration requires manual completion via Vanascan:'));
           console.log();
-          console.log(chalk.cyan('1. Visit your DataLiquidityPoolProxy contract:'));
-          console.log(`   https://moksha.vanascan.io/address/${deployment.dlpAddress}?tab=write_proxy`);
+          console.log(chalk.cyan('1. Visit the DataRefinerRegistryImplementation contract:'));
+          console.log(`   https://moksha.vanascan.io/address/0x93c3EF89369fDcf08Be159D9DeF0F18AB6Be008c?tab=read_write_proxy&source_address=0xf2D607F416a0B367bd3084e83567B3325bD157B5#0x4bb01bbd`);
           console.log();
           console.log(chalk.cyan('2. Find the "addRefiner" method'));
           console.log();
@@ -530,8 +530,8 @@ async function deployRefiner() {
 
         console.log(chalk.yellow('⚠️  On-chain registration requires manual completion via Vanascan:'));
         console.log();
-        console.log(chalk.cyan('1. Visit your DataLiquidityPoolProxy contract:'));
-        console.log(`   https://moksha.vanascan.io/address/${deployment.dlpAddress}?tab=write_proxy`);
+        console.log(chalk.cyan('1. Visit the DataRefinerRegistryImplementation contract:'));
+        console.log(`   https://moksha.vanascan.io/address/0x93c3EF89369fDcf08Be159D9DeF0F18AB6Be008c?tab=read_write_proxy&source_address=0xf2D607F416a0B367bd3084e83567B3325bD157B5#0x4bb01bbd`);
         console.log();
         console.log(chalk.cyan('2. Find the "addRefiner" method'));
         console.log();
