@@ -31,14 +31,9 @@ async function deployContracts() {
       console.error(chalk.yellow('Deployment warnings:'), stderr);
     }
 
-    // Extract contract addresses from output - support both "deployed" and "reusing" patterns
-    const tokenAddressMatch =
-      stdout.match(/deploying "DAT"[\s\S]*?deployed at (0x[a-fA-F0-9]{40})/) ||
-      stdout.match(/reusing "DAT" at (0x[a-fA-F0-9]{40})/);
-
-    const proxyAddressMatch =
-      stdout.match(/deploying "DataLiquidityPoolProxy"[\s\S]*?deployed at (0x[a-fA-F0-9]{40})/) ||
-      stdout.match(/reusing "DataLiquidityPoolProxy" at (0x[a-fA-F0-9]{40})/);
+    // Extract contract addresses from output
+    const tokenAddressMatch = stdout.match(/deployed at (0x[a-fA-F0-9]{40})/);
+    const proxyAddressMatch = stdout.match(/DLP deployed to: (0x[a-fA-F0-9]{40})/);
 
     if (!tokenAddressMatch || !proxyAddressMatch) {
       console.error(chalk.red('Error: Failed to extract contract addresses from deployment output.'));
@@ -53,7 +48,7 @@ async function deployContracts() {
     console.log(chalk.blue('Token Address:'), tokenAddress);
     console.log(chalk.blue('Proxy Address:'), proxyAddress);
 
-    // Save to deployment.json
+    // Save to deployment.json and update state
     const deploymentPath = path.join(process.cwd(), 'deployment.json');
     let deployment = {};
 
@@ -63,6 +58,12 @@ async function deployContracts() {
 
     deployment.tokenAddress = tokenAddress;
     deployment.proxyAddress = proxyAddress;
+
+    // Update state to mark contracts as deployed
+    if (!deployment.state) {
+      deployment.state = {};
+    }
+    deployment.state.contractsDeployed = true;
 
     fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
 

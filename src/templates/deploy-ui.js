@@ -19,7 +19,32 @@ async function deployUI() {
     stateManager.showProgress();
 
     // Validate prerequisites
-    stateManager.validateRequiredFields(['proofUrl', 'refinerId']);
+    try {
+      stateManager.validateRequiredFields(['proofUrl', 'refinerId']);
+    } catch (error) {
+      if (error.message.includes('refinerId')) {
+        console.log(chalk.red('❌ UI configuration failed: Missing refinerId'));
+        console.log();
+        console.log(chalk.yellow('The refiner needs to be registered on-chain to get a refinerId.'));
+        console.log(chalk.blue('To fix this:'));
+        console.log();
+        console.log(chalk.cyan('Option 1: Re-run refiner deployment (recommended)'));
+        console.log('  ' + chalk.gray('npm run deploy:refiner'));
+        console.log('  ' + chalk.gray('This will guide you through the registration process'));
+        console.log();
+        console.log(chalk.cyan('Option 2: Manual registration'));
+        console.log('  1. Visit your DataLiquidityPoolProxy contract:');
+        console.log(`     https://moksha.vanascan.io/address/${deployment.dlpAddress}?tab=write_proxy`);
+        console.log('  2. Find the "addRefiner" method');
+        console.log('  3. Use the parameters from your refiner deployment');
+        console.log('  4. Get the refinerId from the transaction logs');
+        console.log('  5. Add it to deployment.json: "refinerId": <number>');
+        console.log();
+        process.exit(1);
+      } else {
+        throw error;
+      }
+    }
 
     // Check if UI is already configured
     if (stateManager.isCompleted('uiConfigured')) {

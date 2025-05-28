@@ -42,16 +42,9 @@ async function cloneRepositories(targetDir) {
 
     // Clone smart contracts repo (with specific branch)
     console.log(chalk.blue('Cloning smart contracts repository...'));
-    // The branch feat/VRC-20-ykyr is in vana-smart-contracts, not vana-dlp-smart-contracts
-    // Original reference (commented out):
-    // await execPromise(`git clone --depth 1 https://github.com/vana-com/vana-dlp-smart-contracts.git ${path.join(targetDir, 'contracts')}`);
-    // await execPromise(`cd ${path.join(targetDir, 'contracts')} && git fetch origin feat/VRC-20-ykyr --depth 1`);
-    // await execPromise(`cd ${path.join(targetDir, 'contracts')} && git checkout feat/VRC-20-ykyr`);
 
-    // Using correct repository with VRC-20 branch
-    await execPromise(`git clone --depth 1 --no-single-branch https://github.com/vana-com/vana-smart-contracts.git ${path.join(targetDir, 'contracts')}`);
-    await execPromise(`cd ${path.join(targetDir, 'contracts')} && git fetch --depth 1 origin feat/VRC-20-ykyr`);
-    await execPromise(`cd ${path.join(targetDir, 'contracts')} && git checkout feat/VRC-20-ykyr`);
+    // Using develop branch as per tutorial
+    await execPromise(`git clone --depth 1 -b develop https://github.com/vana-com/vana-smart-contracts.git ${path.join(targetDir, 'contracts')}`);
 
     // Clone proof repository
     console.log(chalk.blue('Cloning proof of contribution repository...'));

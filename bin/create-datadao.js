@@ -7,71 +7,170 @@ const chalk = require('chalk');
 const inquirer = require('inquirer');
 const ora = require('ora');
 const { execSync, exec } = require('child_process');
-const { generateTemplate, guideNextSteps } = require('../lib/generator');
+const { generateTemplate, guideNextSteps, guideGitHubSetup } = require('../lib/generator');
 const { setupConfig } = require('../lib/config');
 const { validateInput } = require('../lib/validation');
 const { deriveWalletFromPrivateKey } = require('../lib/wallet');
+const { program } = require('commander');
 
 // Define CLI command
-const program = new Command();
-
 program
   .name('create-datadao')
-  .description('Generate and deploy a DataDAO on the Vana network')
-  .version('1.0.3')
-  .argument('<project-directory>', 'Directory to create the DataDAO project in')
-  .option('-y, --yes', 'Skip all confirmation prompts')
-  .option('-c, --config <file>', 'Path to configuration JSON file')
-  .action(async (projectDirectory, options) => {
-    try {
-      console.log(chalk.blue('🚀 Creating a new DataDAO project...'));
+  .description('Create and manage DataDAO projects on the Vana network')
+  .version('1.0.0');
 
-      // Create project directory
-      const targetDir = path.resolve(process.cwd(), projectDirectory);
+// Main create command
+program
+  .command('create [project-name]')
+  .description('Create a new DataDAO project')
+  .action(async (projectName) => {
+    await createDataDAO(projectName);
+  });
 
-      // Check if directory exists
-      if (fs.existsSync(targetDir)) {
-        const { overwrite } = await inquirer.prompt([
-          {
-            type: 'confirm',
-            name: 'overwrite',
-            message: `Directory ${projectDirectory} already exists. Do you want to overwrite it?`,
-            default: false
-          }
-        ]);
+// Status command - works from anywhere
+program
+  .command('status [project-path]')
+  .description('Check DataDAO project status')
+  .action(async (projectPath) => {
+    await checkStatus(projectPath);
+  });
 
-        if (!overwrite) {
-          console.log(chalk.yellow('Aborting DataDAO creation.'));
-          return;
+// Deploy commands - work from anywhere
+program
+  .command('deploy:contracts [project-path]')
+  .description('Deploy smart contracts for a DataDAO project')
+  .action(async (projectPath) => {
+    await runProjectScript(projectPath, 'deploy:contracts');
+  });
+
+program
+  .command('register [project-path]')
+  .description('Register DataDAO on the Vana network')
+  .action(async (projectPath) => {
+    await runProjectScript(projectPath, 'register:datadao');
+  });
+
+program
+  .command('ui [project-path]')
+  .description('Start the DataDAO UI development server')
+  .action(async (projectPath) => {
+    await runProjectScript(projectPath, 'ui:dev');
+  });
+
+/**
+ * Find project directory from current location or provided path
+ */
+function findProjectDir(providedPath) {
+  if (providedPath) {
+    const fullPath = path.resolve(providedPath);
+    if (fs.existsSync(path.join(fullPath, 'deployment.json'))) {
+      return fullPath;
         }
-
-        fs.emptyDirSync(targetDir);
+    throw new Error(`No DataDAO project found at: ${fullPath}`);
       }
 
-      fs.ensureDirSync(targetDir);
+  // Look in current directory
+  if (fs.existsSync('deployment.json')) {
+    return process.cwd();
+  }
 
-      let config;
+  // Look for common project names in current directory
+  const commonNames = fs.readdirSync('.').filter(name => {
+    const dirPath = path.join(process.cwd(), name);
+    return fs.statSync(dirPath).isDirectory() &&
+           fs.existsSync(path.join(dirPath, 'deployment.json'));
+  });
 
-      if (options.config) {
-        // Load configuration from file
-        const configPath = path.resolve(options.config);
-        if (!fs.existsSync(configPath)) {
-          console.error(chalk.red(`Error: Config file ${configPath} not found.`));
+  if (commonNames.length === 1) {
+    return path.join(process.cwd(), commonNames[0]);
+  }
+
+  if (commonNames.length > 1) {
+    console.log(chalk.yellow('Multiple DataDAO projects found:'));
+    commonNames.forEach(name => console.log(`  • ${name}`));
+    console.log(chalk.yellow('Please specify which project: create-datadao status <project-name>'));
           process.exit(1);
         }
 
-        try {
-          config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          console.log(chalk.green('✓ Configuration loaded from file'));
+  throw new Error('No DataDAO project found. Run from project directory or specify path.');
+}
+
+/**
+ * Check status of a DataDAO project
+ */
+async function checkStatus(projectPath) {
+  try {
+    const projectDir = findProjectDir(projectPath);
+    console.log(chalk.blue(`📊 DataDAO Status: ${path.basename(projectDir)}`));
+    console.log(chalk.gray(`   Location: ${projectDir}`));
+    console.log();
+
+    // Run the status script in the project directory
+    const { execSync } = require('child_process');
+    execSync('npm run status', {
+      stdio: 'inherit',
+      cwd: projectDir
+    });
+
         } catch (error) {
-          console.error(chalk.red(`Error: Invalid JSON in config file: ${error.message}`));
-          process.exit(1);
-        }
+    console.error(chalk.red('Error checking status:'), error.message);
+    console.log();
+    console.log(chalk.yellow('💡 Available projects:'));
+
+    // List available projects
+    try {
+      const dirs = fs.readdirSync('.').filter(name => {
+        const dirPath = path.join(process.cwd(), name);
+        return fs.statSync(dirPath).isDirectory() &&
+               fs.existsSync(path.join(dirPath, 'deployment.json'));
+      });
+
+      if (dirs.length > 0) {
+        dirs.forEach(dir => console.log(`   • ${dir}`));
+        console.log();
+        console.log(chalk.cyan('Usage: create-datadao status <project-name>'));
       } else {
-        // Interactive prompts
+        console.log('   No DataDAO projects found in current directory');
+        console.log();
+        console.log(chalk.cyan('Create a new project: create-datadao create my-datadao'));
+      }
+    } catch (e) {
+      console.log('   Could not scan current directory');
+    }
+
+    process.exit(1);
+  }
+}
+
+/**
+ * Run a project script from anywhere
+ */
+async function runProjectScript(projectPath, scriptName) {
+  try {
+    const projectDir = findProjectDir(projectPath);
+    console.log(chalk.blue(`🚀 Running ${scriptName} for: ${path.basename(projectDir)}`));
+    console.log(chalk.gray(`   Location: ${projectDir}`));
+    console.log();
+
+    const { execSync } = require('child_process');
+    execSync(`npm run ${scriptName}`, {
+      stdio: 'inherit',
+      cwd: projectDir
+    });
+
+  } catch (error) {
+    console.error(chalk.red(`Error running ${scriptName}:`), error.message);
+    process.exit(1);
+  }
+}
+
+/**
+ * Collect configuration from user
+ */
+async function collectConfiguration() {
         console.log('Please provide the following information for your DataDAO:');
 
-        config = await inquirer.prompt([
+  const config = await inquirer.prompt([
           {
             type: 'input',
             name: 'dlpName',
@@ -129,12 +228,6 @@ program
         // Derive address and public key from private key
         console.log(chalk.blue('🔑 Deriving wallet credentials...'));
         const derivedWallet = deriveWalletFromPrivateKey(walletConfig.privateKey);
-
-        console.log(chalk.green('✓ Wallet credentials derived successfully'));
-        console.log(chalk.cyan('Address:'), derivedWallet.address);
-        console.log(chalk.cyan('Public Key:'), derivedWallet.publicKey);
-        console.log(chalk.yellow('💡 Make sure to fund this address with testnet VANA!'));
-        console.log();
 
         // Add derived values to wallet config
         walletConfig.address = derivedWallet.address;
@@ -196,8 +289,7 @@ program
         ]);
 
         console.log(chalk.blue('\n🐙 GitHub Integration:'));
-        console.log('Your GitHub username is needed for forking the template repositories.');
-        console.log(chalk.cyan('Note: You\'ll need to manually fork and enable GitHub Actions later.'));
+        console.log('Your GitHub username is needed for creating template repositories.');
         console.log();
 
         const githubConfig = await inquirer.prompt([
@@ -209,96 +301,126 @@ program
           }
         ]);
 
+        // Set up GitHub repositories
+        console.log();
+        const repoSetup = await guideGitHubSetup({ ...config, ...githubConfig });
+
         // Merge all configurations
-        config = {
+  const finalConfig = {
           ...config,
           ...walletConfig,
           ...pinataConfig,
           ...googleConfig,
-          ...githubConfig
+          ...githubConfig,
+          ...repoSetup
         };
-      }
 
       // Validate input
-      validateInput(config);
+  validateInput(finalConfig);
 
-      // Generate project from template
-      const spinner = ora('Generating project structure...').start();
+  return finalConfig;
+}
+
+/**
+ * Main DataDAO creation flow
+ */
+async function createDataDAO(projectName) {
+  console.log(chalk.blue('🚀 Welcome to DataDAO Creator!'));
+  console.log();
+
+  // Get project name if not provided
+  if (!projectName) {
+    const { name } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'name',
+        message: 'What is your DataDAO project name?',
+        validate: (input) => input.trim() !== '' || 'Project name is required'
+      }
+    ]);
+    projectName = name;
+  }
+
+  const targetDir = path.resolve(projectName);
+
+  // Check if directory already exists
+  if (fs.existsSync(targetDir)) {
+    console.error(chalk.red(`Directory ${projectName} already exists!`));
+    process.exit(1);
+  }
+
+  try {
+    // Collect configuration
+    const config = await collectConfiguration();
+
+    // Generate the project
+    console.log();
+    console.log(chalk.blue('📦 Generating your DataDAO project...'));
       await generateTemplate(targetDir, config);
-      spinner.succeed('Project structure generated successfully');
 
+    console.log();
       console.log(chalk.green('✅ DataDAO project created successfully!'));
       console.log();
+    console.log(chalk.blue('📁 Project location:'), targetDir);
+    console.log();
 
-      // Continue with automatic setup and deployment
-      console.log(chalk.blue('🔄 Continuing with automatic setup and deployment...'));
+    // Show wallet credentials with confirmation
+    console.log(chalk.green('✓ Wallet credentials derived successfully'));
+    console.log(chalk.cyan('Address:'), config.address);
+    console.log(chalk.cyan('Public Key:'), config.publicKey);
+    console.log(chalk.yellow('💡 Make sure to fund this address with testnet VANA!'));
       console.log();
 
-      // Change to project directory for subsequent commands
-      process.chdir(targetDir);
+    // Add confirmation step
+    const { confirmWallet } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'confirmWallet',
+        message: 'Have you reviewed and saved these wallet credentials?',
+        default: false
+      }
+    ]);
 
-      // Step 1: Setup dependencies
-      console.log(chalk.blue('📦 Installing dependencies...'));
-      const setupSpinner = ora('Installing contract and UI dependencies').start();
-      try {
-        execSync('npm install', { stdio: 'pipe' });
-        execSync('npm install', { cwd: 'contracts', stdio: 'pipe' });
-        execSync('npm install', { cwd: 'ui', stdio: 'pipe' });
-        setupSpinner.succeed('Dependencies installed successfully');
-      } catch (error) {
-        setupSpinner.fail('Failed to install dependencies');
-        console.error(chalk.red('Error installing dependencies:'), error.message);
-        console.log(chalk.yellow('You can continue manually with: npm run setup'));
+    if (!confirmWallet) {
+      console.log(chalk.yellow('Please save your wallet credentials before continuing.'));
+      console.log(chalk.yellow('You can resume setup later with: create-datadao status ' + projectName));
+      console.log();
         return;
       }
 
-      // Step 2: Deploy contracts
-      console.log(chalk.blue('🚀 Deploying smart contracts...'));
-      const deploySpinner = ora('Deploying contracts to Moksha testnet').start();
-      try {
-        execSync('node scripts/deploy-contracts.js', { stdio: 'pipe' });
-        deploySpinner.succeed('Smart contracts deployed successfully');
-      } catch (error) {
-        deploySpinner.fail('Failed to deploy contracts');
-        console.error(chalk.red('Error deploying contracts:'), error.message);
-        console.log(chalk.yellow('Check that your wallet has sufficient VANA tokens'));
-        console.log(chalk.yellow('You can continue manually with: npm run deploy:contracts'));
-        return;
-      }
+    // Deploy contracts immediately
+    console.log();
+    console.log(chalk.blue('🚀 Deploying smart contracts...'));
 
-      // Step 3: Show status
-      console.log(chalk.blue('📊 Checking deployment status...'));
-      try {
-        execSync('node scripts/status.js', { stdio: 'inherit' });
-      } catch (error) {
-        console.log(chalk.yellow('Status check failed, but continuing...'));
-      }
+    try {
+      const { execSync } = require('child_process');
+      execSync('npm run deploy:contracts', {
+        stdio: 'inherit',
+        cwd: targetDir
+      });
 
       console.log();
       console.log(chalk.green('✅ Smart contracts deployed successfully!'));
-      console.log();
-      console.log(chalk.blue('📊 Current Status:'));
-      console.log('  ✅ Smart contracts deployed');
-      console.log('  ⏸️  DataDAO registration (next step)');
-      console.log('  ⏸️  GitHub repositories setup');
-      console.log('  ⏸️  Full end-to-end testing');
-      console.log();
-      console.log(chalk.blue('🎯 What you can do now:'));
-      console.log('  • ' + chalk.cyan('npm run ui:dev') + ' - Test the basic UI');
-      console.log('  • ' + chalk.cyan('npm run status') + ' - Check deployment status');
-      console.log('  • ' + chalk.cyan('npm run configure') + ' - Update credentials');
-      console.log();
-      console.log(chalk.yellow('⚠️  Note: Full DataDAO functionality requires completing all setup steps'));
-      console.log();
 
-      // Guide user through next steps
+      // Guide through next steps
       await guideNextSteps(targetDir, config);
 
+    } catch (deployError) {
+      console.log();
+      console.log(chalk.red('❌ Contract deployment failed'));
+      console.log(chalk.yellow('This is usually due to insufficient VANA tokens or network issues.'));
+      console.log();
+      console.log(chalk.blue('🎯 To continue setup:'));
+      console.log(`  1. Fund your wallet: ${config.address}`);
+      console.log(`  2. Resume deployment: create-datadao deploy:contracts ${projectName}`);
+      console.log(`  3. Check status: create-datadao status ${projectName}`);
+      console.log();
+    }
+
     } catch (error) {
-      console.error(chalk.red('Error creating DataDAO project:'));
-      console.error(error.message);
+    console.error(chalk.red('Error creating DataDAO:'), error.message);
       process.exit(1);
     }
-  });
+}
 
 program.parse(process.argv);
