@@ -1,13 +1,10 @@
-const { exec } = require('child_process');
-const util = require('util');
 const fs = require('fs-extra');
 const path = require('path');
+const { execSync } = require('child_process');
 const chalk = require('chalk');
 const ora = require('ora');
 const { createPublicClient, http } = require('viem');
 const { moksha } = require('viem/chains');
-
-const execPromise = util.promisify(exec);
 
 /**
  * Check wallet balance before deployment
@@ -86,44 +83,66 @@ async function deployContracts() {
     console.log(chalk.cyan('📋 Deployment Output:'));
     console.log(output);
 
-    // Extract contract addresses from output
-    const tokenAddressMatch = output.match(/deployed at (0x[a-fA-F0-9]{40})/);
-    const proxyAddressMatch = output.match(/DLP deployed to: (0x[a-fA-F0-9]{40})/);
+    // Extract contract addresses from output - updated patterns for vana-smart-contracts
+    const tokenMatch = output.match(/(?:Token|DAT).*?(?:deployed|reusing).*?(?:at|to)\s+(0x[a-fA-F0-9]{40})/i);
+    const dlpMatch = output.match(/(?:DataLiquidityPool|DLP).*?(?:deployed|reusing).*?(?:at|to)\s+(0x[a-fA-F0-9]{40})/i);
+    const vestingMatch = output.match(/(?:Vesting|VestingWallet).*?(?:deployed|reusing).*?(?:at|to)\s+(0x[a-fA-F0-9]{40})/i);
 
-    if (!tokenAddressMatch || !proxyAddressMatch) {
-      console.error(chalk.red('Error: Failed to extract contract addresses from deployment output.'));
+    if (!tokenMatch) {
+      console.error(chalk.red('Error: Failed to extract token address from deployment output.'));
       console.error(chalk.yellow('Please check deployment logs above for contract addresses.'));
+      console.error(chalk.yellow('You may need to manually extract addresses from the output.'));
       process.exit(1);
     }
 
-    const tokenAddress = tokenAddressMatch[1];
-    const proxyAddress = proxyAddressMatch[1];
+    const tokenAddress = tokenMatch[1];
 
-    console.log(chalk.green('Contracts deployed successfully:'));
-    console.log(chalk.blue('Token Address:'), tokenAddress);
-    console.log(chalk.blue('Proxy Address:'), proxyAddress);
-
-    // Save to deployment.json and update state
+    // Update deployment.json with state management
     deployment.tokenAddress = tokenAddress;
-    deployment.proxyAddress = proxyAddress;
-
-    // Update state to mark contracts as deployed
-    if (!deployment.state) {
-      deployment.state = {};
-    }
+    deployment.state = deployment.state || {};
     deployment.state.contractsDeployed = true;
+
+    console.log(chalk.green('✅ Contracts deployed successfully!'));
+    console.log(chalk.cyan('Token Address:'), tokenAddress);
+
+    if (dlpMatch) {
+      const dlpAddress = dlpMatch[1];
+      deployment.dlpAddress = dlpAddress;
+      console.log(chalk.cyan('DLP Address:'), dlpAddress);
+    }
+
+    if (vestingMatch) {
+      const vestingAddress = vestingMatch[1];
+      deployment.vestingAddress = vestingAddress;
+      console.log(chalk.cyan('Vesting Address:'), vestingAddress);
+    }
 
     fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
 
-    console.log();
-    console.log(chalk.blue('Next step:'));
-    console.log('Run ' + chalk.cyan('npm run register:datadao') + ' to register your DataDAO on-chain');
-
   } catch (error) {
-    console.error(chalk.red('Deployment failed:'), error.message);
+    console.error(chalk.red('Contract deployment failed:'));
+    console.error(error.message);
+
+    // Check if it's a known error type
+    if (error.message.includes('insufficient funds') || error.message.includes('INSUFFICIENT_FUNDS')) {
+      console.error(chalk.yellow('💡 This appears to be a funding issue.'));
+      console.error(chalk.yellow('Please ensure your wallet has sufficient VANA tokens.'));
+    } else if (error.message.includes('execution reverted')) {
+      console.error(chalk.yellow('💡 Transaction was reverted by the network.'));
+      console.error(chalk.yellow('This could be due to:'));
+      console.error(chalk.yellow('  - Insufficient gas or funds'));
+      console.error(chalk.yellow('  - Contract deployment restrictions'));
+      console.error(chalk.yellow('  - Network congestion'));
+    }
+
+    console.error(chalk.yellow('\nTroubleshooting:'));
+    console.error(chalk.yellow('1. Check your wallet balance at https://moksha.vanascan.io'));
+    console.error(chalk.yellow('2. Get more VANA from https://faucet.vana.org'));
+    console.error(chalk.yellow('3. Wait a few minutes and try again'));
+
     process.exit(1);
   }
 }
 
-// Run the deployment
-deployContracts();
+// Run deployment
+deployContracts(); 

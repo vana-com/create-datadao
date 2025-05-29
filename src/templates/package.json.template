@@ -1,0 +1,26 @@
+{
+  "name": "{{name}}",
+  "version": "1.0.0",
+  "description": "{{dlpName}} - A DataDAO on the Vana network",
+  "scripts": {
+    "deploy": "node scripts/deploy.js",
+    "setup": "node scripts/setup.js",
+    "configure": "node scripts/configure.js",
+    "status": "node scripts/status.js",
+    "deploy:contracts": "node scripts/deploy-contracts.js",
+    "register:datadao": "node scripts/register-datadao.js",
+    "deploy:proof": "node scripts/deploy-proof.js",
+    "deploy:refiner": "node scripts/deploy-refiner.js",
+    "deploy:ui": "node scripts/deploy-ui.js",
+    "deploy:all": "npm run deploy",
+    "ui:dev": "cd ui && npm run dev",
+    "ui:build": "cd ui && npm run build"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "fs-extra": "^11.1.1",
+    "inquirer": "^8.2.5",
+    "ora": "^5.4.1",
+    "viem": "^2.23.11"
+  }
+} 
