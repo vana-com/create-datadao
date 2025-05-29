@@ -1,0 +1,437 @@
+const fs = require('fs-extra');
+const path = require('path');
+const chalk = require('chalk');
+const inquirer = require('inquirer');
+const { createPublicClient, createWalletClient, http, parseEther } = require('viem');
+const { privateKeyToAccount } = require('viem/accounts');
+const { moksha } = require('viem/chains');
+
+// DLP Registry contract address and ABI
+const DLP_REGISTRY_ADDRESS = '{{DLP_REGISTRY_CONTRACT_ADDRESS}}';
+const DLP_REGISTRY_ABI = [
+  {
+    "inputs": [{"internalType": "address", "name": "dlpAddress", "type": "address"}],
+    "name": "dlpIds",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "dlpAddress",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "ownerAddress",
+            "type": "address"
+          },
+          {
+            "internalType": "address payable",
+            "name": "treasuryAddress",
+            "type": "address"
+          },
+          {
+            "internalType": "string",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "iconUrl",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "website",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "metadata",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct IDLPRegistry.DlpRegistration",
+        "name": "registrationInfo",
+        "type": "tuple"
+      }
+    ],
+    "name": "registerDlp",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  }
+];
+
+/**
+ * Get dlpId from the registry automatically
+ */
+async function getDlpId(dlpAddress) {
+  const client = createPublicClient({
+    chain: moksha,
+    transport: http('{{MOKSHA_RPC_URL}}')
+  });
+
+  try {
+    const dlpId = await client.readContract({
+      address: DLP_REGISTRY_ADDRESS,
+      abi: DLP_REGISTRY_ABI,
+      functionName: 'dlpIds',
+      args: [dlpAddress]
+    });
+
+    return Number(dlpId);
+  } catch (error) {
+    console.error(chalk.red('Error querying dlpId:'), error.message);
+    return 0;
+  }
+}
+
+/**
+ * Check wallet balance before registration
+ */
+async function checkWalletBalance(address) {
+  const client = createPublicClient({
+    chain: moksha,
+    transport: http('{{MOKSHA_RPC_URL}}')
+  });
+
+  try {
+    const balance = await client.getBalance({ address });
+    const balanceInVana = Number(balance) / 1e18;
+
+    console.log(chalk.blue('💰 Wallet Information:'));
+    console.log(`  Address: ${address}`);
+    console.log(`  Balance: ${balanceInVana.toFixed(4)} VANA`);
+    console.log();
+
+    if (balanceInVana < 1.1) {
+      console.error(chalk.red('❌ Insufficient balance for registration!'));
+      console.error(chalk.yellow('Registration requires 1 VANA + gas fees (recommend at least 1.1 VANA)'));
+      console.error(chalk.yellow('Please fund your wallet from https://faucet.vana.org'));
+      console.error(chalk.yellow(`Your wallet address: ${address}`));
+      return false;
+    }
+
+    console.log(chalk.green('✅ Wallet has sufficient balance for registration'));
+    return true;
+  } catch (error) {
+    console.error(chalk.yellow(`⚠️  Could not check wallet balance: ${error.message}`));
+    console.log(chalk.yellow('Proceeding with registration...'));
+    return true;
+  }
+}
+
+/**
+ * ENHANCEMENT: Perform automated registration
+ */
+async function performAutomatedRegistration(deployment) {
+  console.log(chalk.blue('⚡ Starting automated registration...'));
+  console.log();
+
+  // Load private key from contracts .env
+  const contractsEnvPath = path.join(process.cwd(), 'contracts', '.env');
+  if (!fs.existsSync(contractsEnvPath)) {
+    console.error(chalk.red('No contracts/.env file found. Cannot access private key.'));
+    return false;
+  }
+
+  const envContent = fs.readFileSync(contractsEnvPath, 'utf8');
+  const privateKeyMatch = envContent.match(/DEPLOYER_PRIVATE_KEY=(.+)/);
+
+  if (!privateKeyMatch) {
+    console.error(chalk.red('No DEPLOYER_PRIVATE_KEY found in contracts/.env'));
+    return false;
+  }
+
+  const privateKey = privateKeyMatch[1].trim();
+
+  try {
+    // Create account and clients
+    const account = privateKeyToAccount(privateKey);
+
+    const publicClient = createPublicClient({
+      chain: moksha,
+      transport: http('{{MOKSHA_RPC_URL}}')
+    });
+
+    const walletClient = createWalletClient({
+      account,
+      chain: moksha,
+      transport: http('{{MOKSHA_RPC_URL}}')
+    });
+
+    // Check balance
+    const hasBalance = await checkWalletBalance(account.address);
+    if (!hasBalance) {
+      return false;
+    }
+
+    // Prepare registration parameters
+    const registrationParams = {
+      dlpAddress: deployment.dlpAddress,
+      ownerAddress: deployment.address,
+      treasuryAddress: deployment.address,
+      name: deployment.dlpName,
+      iconUrl: '',
+      website: '',
+      metadata: ''
+    };
+
+    console.log(chalk.blue('📋 Registration Parameters:'));
+    console.log(`  DLP Address: ${registrationParams.dlpAddress}`);
+    console.log(`  Owner: ${registrationParams.ownerAddress}`);
+    console.log(`  Treasury: ${registrationParams.treasuryAddress}`);
+    console.log(`  Name: ${registrationParams.name}`);
+    console.log(`  Registration Fee: 1 VANA`);
+    console.log();
+
+    const { confirm } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'confirm',
+        message: 'Proceed with automated registration?',
+        default: true
+      }
+    ]);
+
+    if (!confirm) {
+      console.log(chalk.yellow('Registration cancelled.'));
+      return false;
+    }
+
+    console.log(chalk.blue('🚀 Submitting registration transaction...'));
+
+    // Call registerDlp function
+    const hash = await walletClient.writeContract({
+      address: DLP_REGISTRY_ADDRESS,
+      abi: DLP_REGISTRY_ABI,
+      functionName: 'registerDlp',
+      args: [
+        {
+          dlpAddress: registrationParams.dlpAddress,
+          ownerAddress: registrationParams.ownerAddress,
+          treasuryAddress: registrationParams.treasuryAddress,
+          name: registrationParams.name,
+          iconUrl: registrationParams.iconUrl,
+          website: registrationParams.website,
+          metadata: registrationParams.metadata
+        }
+      ],
+      value: parseEther('1') // 1 VANA registration fee
+    });
+
+    console.log(chalk.blue(`📝 Transaction submitted: ${hash}`));
+    console.log(chalk.blue('⏳ Waiting for confirmation...'));
+
+    // Wait for transaction receipt
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    if (receipt.status === 'success') {
+      console.log(chalk.green('✅ Registration transaction confirmed!'));
+      console.log(`   Block: ${receipt.blockNumber}`);
+      console.log(`   Gas used: ${receipt.gasUsed}`);
+      console.log();
+
+      // Get the dlpId
+      console.log(chalk.blue('🔍 Retrieving dlpId...'));
+      const dlpId = await getDlpId(deployment.dlpAddress);
+
+      if (dlpId > 0) {
+        console.log(chalk.green(`✅ Registration successful! dlpId: ${dlpId}`));
+        deployment.dlpId = dlpId;
+        deployment.state = deployment.state || {};
+        deployment.state.dataDAORegistered = true;
+        return true;
+      } else {
+        console.error(chalk.red('Registration transaction succeeded but could not retrieve dlpId'));
+        console.log(chalk.yellow('Please check the transaction and try querying dlpId manually'));
+        return false;
+      }
+    } else {
+      console.error(chalk.red('❌ Registration transaction failed'));
+      console.log(`   Transaction hash: ${hash}`);
+      return false;
+    }
+
+  } catch (error) {
+    console.error(chalk.red('Registration failed:'), error.message);
+
+    if (error.message.includes('insufficient funds')) {
+      console.error(chalk.yellow('💡 Insufficient funds for transaction'));
+      console.error(chalk.yellow('Please ensure you have at least 1.1 VANA for registration + gas'));
+    } else if (error.message.includes('execution reverted')) {
+      console.error(chalk.yellow('💡 Transaction reverted - possible causes:'));
+      console.error(chalk.yellow('  - DLP already registered'));
+      console.error(chalk.yellow('  - Invalid DLP address'));
+      console.error(chalk.yellow('  - Network congestion'));
+    }
+
+    return false;
+  }
+}
+
+/**
+ * PRESERVED: Manual registration flow
+ */
+async function performManualRegistration(deployment) {
+  console.log();
+  console.log(chalk.yellow('🔗 Manual Registration Steps:'));
+  console.log('1. Go to {{MOKSHA_BROWSER_URL}}/address/{{DLP_REGISTRY_CONTRACT_ADDRESS}}?tab=write_proxy');
+  console.log('2. Connect your wallet');
+  console.log('3. Find the "registerDlp" method');
+  console.log('4. Fill in the registration info:');
+  console.log(`   - dlpAddress: ${deployment.dlpAddress}`);
+  console.log(`   - ownerAddress: ${deployment.address}`);
+  console.log(`   - treasuryAddress: ${deployment.address}`);
+  console.log(`   - name: ${deployment.dlpName}`);
+  console.log('   - iconUrl: (optional)');
+  console.log('   - website: (optional)');
+  console.log('   - metadata: (optional)');
+  console.log('5. Set "Send native VANA" to 1 (click ×10^18 button)');
+  console.log('6. Submit the transaction');
+  console.log();
+
+  const { completed } = await inquirer.prompt([
+    {
+      type: 'confirm',
+      name: 'completed',
+      message: 'Have you completed the registration transaction?',
+      default: false
+    }
+  ]);
+
+  if (!completed) {
+    console.log(chalk.yellow('Please complete the registration and run this script again.'));
+    process.exit(0);
+  }
+
+  // Auto-detect dlpId after manual registration
+  console.log();
+  console.log(chalk.blue('🔍 Detecting your dlpId...'));
+
+  // Poll for dlpId (it might take a moment for the transaction to be processed)
+  let dlpId = 0;
+  for (let i = 0; i < 10; i++) {
+    dlpId = await getDlpId(deployment.dlpAddress);
+    if (dlpId > 0) break;
+
+    console.log(`   Attempt ${i + 1}/10: Waiting for registration to be processed...`);
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  }
+
+  if (dlpId === 0) {
+    console.error(chalk.red('Could not detect dlpId automatically.'));
+    console.log(chalk.yellow('Please check your transaction and try again, or manually enter the dlpId.'));
+    process.exit(1);
+  }
+
+  console.log(chalk.green(`✅ dlpId detected: ${dlpId}`));
+  deployment.dlpId = dlpId;
+  deployment.state = deployment.state || {};
+  deployment.state.dataDAORegistered = true;
+  return true;
+}
+
+/**
+ * Register DataDAO with BOTH automated AND manual options
+ */
+async function registerDataDAO() {
+  console.log(chalk.blue('📋 DataDAO Registration'));
+  console.log();
+
+  // Load deployment info
+  const deploymentPath = path.join(process.cwd(), 'deployment.json');
+  if (!fs.existsSync(deploymentPath)) {
+    console.error(chalk.red('No deployment.json found. Please deploy contracts first.'));
+    process.exit(1);
+  }
+
+  const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+
+  if (!deployment.dlpAddress) {
+    console.error(chalk.red('No DLP address found. Please deploy contracts first.'));
+    process.exit(1);
+  }
+
+  console.log(chalk.blue('📋 Registration Information:'));
+  console.log(`  DLP Address: ${deployment.dlpAddress}`);
+  console.log(`  Owner Address: ${deployment.address}`);
+  console.log(`  DLP Name: ${deployment.dlpName}`);
+  console.log();
+
+  // Check if already registered
+  console.log(chalk.blue('🔍 Checking registration status...'));
+  const existingDlpId = await getDlpId(deployment.dlpAddress);
+
+  if (existingDlpId > 0) {
+    console.log(chalk.green(`✅ DataDAO already registered with dlpId: ${existingDlpId}`));
+    deployment.dlpId = existingDlpId;
+    deployment.state = deployment.state || {};
+    deployment.state.dataDAORegistered = true;
+    fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
+
+    console.log();
+    console.log(chalk.blue('🎯 Your DataDAO is registered and ready!'));
+    console.log('Next: Configure your proof template and refiner');
+    return;
+  }
+
+  console.log(chalk.yellow('⏸️  DataDAO not yet registered'));
+  console.log();
+  console.log(chalk.blue('📋 Registration Options:'));
+  console.log();
+
+  const { registrationMethod } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'registrationMethod',
+      message: 'How would you like to register your DataDAO?',
+      choices: [
+        { name: '⚡ Automated registration (recommended)', value: 'auto' },
+        { name: '🌐 Manual registration via Vanascan', value: 'manual' },
+        { name: '⏸️  Skip for now', value: 'skip' }
+      ]
+    }
+  ]);
+
+  if (registrationMethod === 'skip') {
+    console.log(chalk.yellow('Registration skipped. You can register later with: npm run register:datadao'));
+    return;
+  }
+
+  let registrationSuccessful = false;
+
+  if (registrationMethod === 'auto') {
+    registrationSuccessful = await performAutomatedRegistration(deployment);
+  } else if (registrationMethod === 'manual') {
+    registrationSuccessful = await performManualRegistration(deployment);
+  }
+
+  if (registrationSuccessful) {
+    fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
+    console.log();
+    console.log(chalk.green('✅ DataDAO registration completed!'));
+    console.log();
+    console.log(chalk.blue('🎯 What happens next:'));
+    console.log('• Update your proof template with the dlpId');
+    console.log('• Get the encryption key for your refiner');
+    console.log('• Configure your proof-of-contribution logic');
+    console.log('• Test the full data contribution flow');
+  } else if (registrationMethod === 'auto') {
+    console.log();
+    console.log(chalk.yellow('⚠️  Automated registration failed'));
+    console.log(chalk.yellow('You can try manual registration or run this script again'));
+  }
+}
+
+// Run registration
+registerDataDAO().catch(error => {
+  console.error(chalk.red('Registration failed:'), error.message);
+  process.exit(1);
+}); 
