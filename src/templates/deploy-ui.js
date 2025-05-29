@@ -79,6 +79,32 @@ async function deployUI() {
     uiEnv = updateEnvVar(uiEnv, 'REFINER_ID', deployment.refinerId);
     uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_PROOF_URL', deployment.proofUrl);
 
+    // Generate NEXTAUTH_SECRET if not present
+    if (!uiEnv.includes('NEXTAUTH_SECRET=')) {
+      const crypto = require('crypto');
+      const nextAuthSecret = crypto.randomBytes(32).toString('hex');
+      uiEnv = updateEnvVar(uiEnv, 'NEXTAUTH_SECRET', nextAuthSecret);
+      console.log(chalk.green('✓ Generated NEXTAUTH_SECRET for session encryption'));
+    }
+
+    // Add NEXTAUTH_URL for proper OAuth configuration
+    uiEnv = updateEnvVar(uiEnv, 'NEXTAUTH_URL', 'http://localhost:3000');
+
+    // Add contract addresses if available
+    if (deployment.proxyAddress) {
+      uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_DLP_CONTRACT_ADDRESS', deployment.proxyAddress);
+    }
+    if (deployment.tokenAddress) {
+      uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS', deployment.tokenAddress);
+    }
+    if (deployment.dlpId) {
+      uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_DLP_ID', deployment.dlpId);
+    }
+
+    // Add network configuration
+    uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_NETWORK_RPC_URL', 'https://rpc.moksha.vana.org');
+    uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_NETWORK_CHAIN_ID', '14800');
+
     // Add Pinata credentials if available
     if (deployment.pinataApiKey && deployment.pinataApiSecret) {
       uiEnv = updateEnvVar(uiEnv, 'PINATA_API_KEY', deployment.pinataApiKey);

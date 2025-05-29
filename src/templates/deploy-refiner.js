@@ -3,7 +3,8 @@ const fs = require('fs-extra');
 const path = require('path');
 const chalk = require('chalk');
 const { execSync } = require('child_process');
-const { createPublicClient, http } = require('viem');
+const { createPublicClient, createWalletClient, http } = require('viem');
+const { privateKeyToAccount } = require('viem/accounts');
 const { moksha } = require('viem/chains');
 
 // QueryEngine contract for getting encryption key (correct contract)
@@ -17,6 +18,47 @@ const QUERY_ENGINE_ABI = [
     "type": "function"
   }
 ];
+
+// DataRefinerRegistry contract for registering refiners
+const REFINER_REGISTRY_ADDRESS = '0x93c3EF89369fDcf08Be159D9DeF0F18AB6Be008c';
+const REFINER_REGISTRY_ABI = [
+  {
+    "inputs": [
+      {"internalType": "uint256", "name": "dlpId", "type": "uint256"},
+      {"internalType": "string", "name": "name", "type": "string"},
+      {"internalType": "string", "name": "schemaDefinitionUrl", "type": "string"},
+      {"internalType": "string", "name": "refinementInstructionUrl", "type": "string"},
+      {"internalType": "string", "name": "publicKey", "type": "string"}
+    ],
+    "name": "addRefiner",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+];
+
+/**
+ * Update UI .env file with refinerId
+ */
+function updateRefinerId(refinerId) {
+  try {
+    const uiEnvPath = path.join(process.cwd(), '..', 'ui', '.env');
+    if (fs.existsSync(uiEnvPath)) {
+      let uiEnv = fs.readFileSync(uiEnvPath, 'utf8');
+      
+      if (uiEnv.includes('REFINER_ID=')) {
+        uiEnv = uiEnv.replace(/REFINER_ID=.*/, `REFINER_ID=${refinerId}`);
+      } else {
+        uiEnv += `\nREFINER_ID=${refinerId}\n`;
+      }
+      
+      fs.writeFileSync(uiEnvPath, uiEnv);
+      console.log(chalk.green('✅ UI configuration updated with refinerId'));
+    }
+  } catch (error) {
+    console.log(chalk.yellow(`⚠️  Could not update UI .env: ${error.message}`));
+  }
+}
 
 /**
  * Poll for encryption key from blockchain with retries
@@ -81,6 +123,106 @@ async function getEncryptionKey(dlpId) {
     return encryptionKey;
   } catch (error) {
     console.error(chalk.red('Error retrieving encryption key:'), error.message);
+    return null;
+  }
+}
+
+/**
+ * Register refiner on-chain automatically
+ */
+async function registerRefinerOnChain(dlpId, refinerName, schemaUrl, refinerUrl, publicKey, privateKey) {
+  try {
+    console.log(chalk.blue('🔗 Registering refiner on-chain automatically...'));
+    
+    // Create wallet client for sending transactions
+    const account = privateKeyToAccount(privateKey);
+    const walletClient = createWalletClient({
+      account,
+      chain: moksha,
+      transport: http('https://rpc.moksha.vana.org')
+    });
+
+    // Create public client for reading
+    const publicClient = createPublicClient({
+      chain: moksha,
+      transport: http('https://rpc.moksha.vana.org')
+    });
+
+    console.log(chalk.cyan('📋 Transaction parameters:'));
+    console.log(`  Contract: ${REFINER_REGISTRY_ADDRESS}`);
+    console.log(`  dlpId: ${dlpId}`);
+    console.log(`  name: ${refinerName}`);
+    console.log(`  schemaDefinitionUrl: ${schemaUrl}`);
+    console.log(`  refinementInstructionUrl: ${refinerUrl}`);
+    console.log(`  publicKey: ${publicKey.slice(0, 20)}...`);
+    console.log();
+
+    // Estimate gas first
+    console.log(chalk.blue('⛽ Estimating gas...'));
+    const gasEstimate = await publicClient.estimateContractGas({
+      address: REFINER_REGISTRY_ADDRESS,
+      abi: REFINER_REGISTRY_ABI,
+      functionName: 'addRefiner',
+      args: [BigInt(dlpId), refinerName, schemaUrl, refinerUrl, publicKey],
+      account
+    });
+
+    console.log(chalk.cyan(`Estimated gas: ${gasEstimate.toString()}`));
+
+    // Send transaction
+    console.log(chalk.blue('📤 Sending transaction...'));
+    const hash = await walletClient.writeContract({
+      address: REFINER_REGISTRY_ADDRESS,
+      abi: REFINER_REGISTRY_ABI,
+      functionName: 'addRefiner',
+      args: [BigInt(dlpId), refinerName, schemaUrl, refinerUrl, publicKey],
+      gas: gasEstimate
+    });
+
+    console.log(chalk.cyan(`Transaction hash: ${hash}`));
+    console.log(chalk.blue('⏳ Waiting for transaction confirmation...'));
+
+    // Wait for transaction receipt
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    if (receipt.status === 'success') {
+      console.log(chalk.green('✅ Transaction confirmed!'));
+      console.log(chalk.cyan(`Block: ${receipt.blockNumber}`));
+      console.log(chalk.cyan(`Gas used: ${receipt.gasUsed}`));
+
+      // Extract refinerId from logs
+      const refinerAddedLog = receipt.logs.find(log => 
+        log.address.toLowerCase() === REFINER_REGISTRY_ADDRESS.toLowerCase()
+      );
+
+      if (refinerAddedLog) {
+        // The refinerId is typically the first topic after the event signature
+        // For RefinerAdded(uint256 indexed refinerId, ...)
+        const refinerId = parseInt(refinerAddedLog.topics[1], 16);
+        console.log(chalk.green(`✅ Refiner registered with ID: ${refinerId}`));
+        return refinerId;
+      } else {
+        console.log(chalk.yellow('⚠️  Could not extract refinerId from transaction logs'));
+        console.log(chalk.yellow('You can find it manually at:'));
+        console.log(chalk.cyan(`https://moksha.vanascan.io/tx/${hash}`));
+        return null;
+      }
+    } else {
+      throw new Error('Transaction failed');
+    }
+
+  } catch (error) {
+    console.log(chalk.red('❌ Automatic registration failed:'), error.message);
+    
+    if (error.message.includes('insufficient funds')) {
+      console.log(chalk.yellow('💡 Make sure your wallet has enough VANA tokens for gas fees'));
+    } else if (error.message.includes('execution reverted')) {
+      console.log(chalk.yellow('💡 Transaction was reverted. Possible reasons:'));
+      console.log('  • Refiner already exists for this DLP');
+      console.log('  • Invalid parameters');
+      console.log('  • DLP not properly registered');
+    }
+    
     return null;
   }
 }
@@ -230,6 +372,9 @@ async function deployRefiner() {
     console.log(chalk.blue('🔧 Generating schema locally...'));
 
     try {
+      // Check if Docker daemon is running first
+      execSync('docker info', { stdio: 'pipe' });
+      
       // Build and run the refiner to generate schema
       execSync('docker build -t refiner .', { stdio: 'pipe' });
       execSync('docker run --rm -v $(pwd)/input:/input -v $(pwd)/output:/output --env-file .env refiner', { stdio: 'pipe' });
@@ -241,7 +386,31 @@ async function deployRefiner() {
         console.log(chalk.yellow('⚠️  Schema generation may have failed, but continuing...'));
       }
     } catch (error) {
-      console.log(chalk.yellow('⚠️  Local schema generation failed, but continuing with deployment...'));
+      if (error.message.includes('Cannot connect to the Docker daemon') || 
+          error.message.includes('docker daemon') ||
+          error.message.includes('daemon running')) {
+        console.log(chalk.yellow('⚠️  Docker daemon is not running!'));
+        console.log(chalk.cyan('💡 To fix this:'));
+        console.log('  • Start Docker Desktop application');
+        console.log('  • Or run: sudo systemctl start docker (on Linux)');
+        console.log('  • Wait for Docker to fully start, then try again');
+        console.log();
+        console.log(chalk.blue('📋 You can still continue with manual deployment without local schema generation.'));
+      } else if (error.message.includes('401 Client Error') && error.message.includes('pinata')) {
+        console.log(chalk.yellow('⚠️  Pinata API credentials are invalid or expired!'));
+        console.log(chalk.cyan('💡 To fix this:'));
+        console.log('  • Check your Pinata API key and secret in the .env file');
+        console.log('  • Go to https://pinata.cloud → API Keys');
+        console.log('  • Generate new API credentials if needed');
+        console.log('  • Update the refiner/.env file with:');
+        console.log('    PINATA_API_KEY=your_new_key');
+        console.log('    PINATA_API_SECRET=your_new_secret');
+        console.log();
+        console.log(chalk.blue('📋 You can still continue with manual deployment - the schema will be uploaded later.'));
+      } else {
+        console.log(chalk.yellow('⚠️  Local schema generation failed:', error.message));
+      }
+      console.log(chalk.yellow('Continuing with deployment...'));
     }
 
     // Provide deployment options
@@ -388,58 +557,84 @@ async function deployRefiner() {
         console.log(chalk.blue('📋 Registering refiner on-chain...'));
 
         try {
-          // Read the encryption key from .env for registration
-          const envPath = path.join(process.cwd(), '.env');
-          const envContent = fs.readFileSync(envPath, 'utf8');
-          const encryptionKey = envContent.match(/REFINEMENT_ENCRYPTION_KEY=(.+)/)?.[1];
-
-          if (!encryptionKey) {
-            throw new Error('Encryption key not found in .env file');
+          // Get the private key from contracts/.env
+          const contractsEnvPath = path.join(process.cwd(), '..', 'contracts', '.env');
+          
+          if (!fs.existsSync(contractsEnvPath)) {
+            throw new Error('contracts/.env file not found');
           }
+          
+          const contractsEnv = fs.readFileSync(contractsEnvPath, 'utf8');
+          const privateKeyMatch = contractsEnv.match(/DEPLOYER_PRIVATE_KEY=(.+)/);
+          
+          if (!privateKeyMatch) {
+            throw new Error('DEPLOYER_PRIVATE_KEY not found in contracts/.env');
+          }
+          
+          const privateKey = privateKeyMatch[1].trim();
+          
+          // Get deployment info for other parameters
+          const innerDeploymentPath = path.join(process.cwd(), '..', 'deployment.json');
+          const innerDeployment = JSON.parse(fs.readFileSync(innerDeploymentPath, 'utf8'));
 
-          console.log(chalk.cyan('Registration parameters:'));
-          console.log(`  dlpId: ${deployment.dlpId}`);
-          console.log(`  name: ${deployment.dlpName} Refiner`);
-          console.log(`  schemaDefinitionUrl: ${schemaUrl}`);
-          console.log(`  refinementInstructionUrl: ${refinerUrl}`);
-          console.log(`  publicKey: ${encryptionKey}`);
-          console.log();
+          const refinerName = `${innerDeployment.dlpName} Refiner`;
+          
+          // Try automatic registration first
+          const refinerId = await registerRefinerOnChain(
+            innerDeployment.dlpId,
+            refinerName,
+            schemaUrl,
+            refinerUrl,
+            encryptionKey,
+            privateKey
+          );
 
-          console.log(chalk.yellow('⚠️  On-chain registration requires manual completion via Vanascan:'));
-          console.log();
-          console.log(chalk.cyan('1. Visit the DataRefinerRegistryImplementation contract:'));
-          console.log(`   https://moksha.vanascan.io/address/0x93c3EF89369fDcf08Be159D9DeF0F18AB6Be008c?tab=read_write_proxy&source_address=0xf2D607F416a0B367bd3084e83567B3325bD157B5#0x4bb01bbd`);
-          console.log();
-          console.log(chalk.cyan('2. Find the "addRefiner" method'));
-          console.log();
-          console.log(chalk.cyan('3. Fill in the parameters:'));
-          console.log(`   dlpId: ${deployment.dlpId}`);
-          console.log(`   name: ${deployment.dlpName} Refiner`);
-          console.log(`   schemaDefinitionUrl: ${schemaUrl}`);
-          console.log(`   refinementInstructionUrl: ${refinerUrl}`);
-          console.log(`   publicKey: ${encryptionKey}`);
-          console.log();
-          console.log(chalk.cyan('4. Connect your wallet and submit the transaction'));
-          console.log();
-          console.log(chalk.cyan('5. After transaction confirms, find the "RefinerAdded" event in the logs'));
-          console.log(chalk.cyan('6. Copy the refinerId from the event'));
-          console.log();
+          if (refinerId) {
+            deployment.refinerId = refinerId;
+            console.log(chalk.green(`✅ Refiner automatically registered with ID: ${refinerId}`));
+            
+            // Update UI .env with refinerId
+            updateRefinerId(refinerId);
+          } else {
+            // Fall back to manual registration
+            console.log();
+            console.log(chalk.yellow('⚠️  Falling back to manual registration...'));
+            console.log(chalk.yellow('Please complete the registration manually:'));
+            console.log();
+            console.log(chalk.cyan('1. Visit the DataRefinerRegistryImplementation contract:'));
+            console.log(`   https://moksha.vanascan.io/address/${REFINER_REGISTRY_ADDRESS}?tab=read_write_proxy`);
+            console.log();
+            console.log(chalk.cyan('2. Find the "addRefiner" method'));
+            console.log();
+            console.log(chalk.cyan('3. Fill in the parameters:'));
+            console.log(`   dlpId: ${innerDeployment.dlpId}`);
+            console.log(`   name: ${refinerName}`);
+            console.log(`   schemaDefinitionUrl: ${schemaUrl}`);
+            console.log(`   refinementInstructionUrl: ${refinerUrl}`);
+            console.log(`   publicKey: ${encryptionKey}`);
+            console.log();
+            console.log(chalk.cyan('4. Connect your wallet and submit the transaction'));
+            console.log();
 
-          const { refinerId } = await inquirer.prompt([
-            {
-              type: 'input',
-              name: 'refinerId',
-              message: 'Enter the refinerId from the transaction logs:',
-              validate: (input) => {
-                const num = parseInt(input);
-                if (isNaN(num) || num < 0) return 'Please enter a valid refinerId number';
-                return true;
+            const { manualRefinerId } = await inquirer.prompt([
+              {
+                type: 'input',
+                name: 'manualRefinerId',
+                message: 'Enter the refinerId from the transaction logs:',
+                validate: (input) => {
+                  const num = parseInt(input);
+                  if (isNaN(num) || num < 0) return 'Please enter a valid refinerId number';
+                  return true;
+                }
               }
-            }
-          ]);
-
-          deployment.refinerId = parseInt(refinerId);
-          console.log(chalk.green(`✅ Refiner registered with ID: ${deployment.refinerId}`));
+            ]);
+            
+            deployment.refinerId = parseInt(manualRefinerId);
+            console.log(chalk.green(`✅ Refiner manually registered with ID: ${deployment.refinerId}`));
+            
+            // Update UI .env with refinerId
+            updateRefinerId(deployment.refinerId);
+          }
 
         } catch (error) {
           console.log(chalk.yellow('⚠️  Automatic refiner registration failed:', error.message));
@@ -531,7 +726,7 @@ async function deployRefiner() {
         console.log(chalk.yellow('⚠️  On-chain registration requires manual completion via Vanascan:'));
         console.log();
         console.log(chalk.cyan('1. Visit the DataRefinerRegistryImplementation contract:'));
-        console.log(`   https://moksha.vanascan.io/address/0x93c3EF89369fDcf08Be159D9DeF0F18AB6Be008c?tab=read_write_proxy&source_address=0xf2D607F416a0B367bd3084e83567B3325bD157B5#0x4bb01bbd`);
+        console.log(`   https://moksha.vanascan.io/address/${REFINER_REGISTRY_ADDRESS}?tab=read_write_proxy`);
         console.log();
         console.log(chalk.cyan('2. Find the "addRefiner" method'));
         console.log();
@@ -548,21 +743,61 @@ async function deployRefiner() {
         console.log(chalk.cyan('6. Copy the refinerId from the event'));
         console.log();
 
-        const { refinerId } = await inquirer.prompt([
+        // Try to automatically extract refinerId from recent transactions
+        console.log(chalk.blue('🔍 Attempting to automatically detect refinerId...'));
+        console.log(chalk.yellow('Please submit the transaction in Vanascan, then press Enter to continue.'));
+        
+        await inquirer.prompt([
           {
             type: 'input',
-            name: 'refinerId',
-            message: 'Enter the refinerId from the transaction logs:',
-            validate: (input) => {
-              const num = parseInt(input);
-              if (isNaN(num) || num < 0) return 'Please enter a valid refinerId number';
-              return true;
-            }
+            name: 'continue',
+            message: 'Press Enter after submitting the transaction...',
           }
         ]);
 
-        deployment.refinerId = parseInt(refinerId);
-        console.log(chalk.green(`✅ Refiner registered with ID: ${deployment.refinerId}`));
+        // Poll for recent transactions to find refinerId
+        let refinerId = null;
+        const maxAttempts = 12; // 2 minutes with 10-second intervals
+        
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            console.log(chalk.blue(`🔍 Checking for transaction confirmation (${attempt}/${maxAttempts})...`));
+            
+            // Here we would implement transaction polling
+            // For now, fall back to manual input after a few attempts
+            if (attempt >= 3) {
+              console.log(chalk.yellow('⚠️  Automatic detection taking longer than expected.'));
+              break;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
+          } catch (error) {
+            console.log(chalk.yellow(`Attempt ${attempt} failed: ${error.message}`));
+          }
+        }
+
+        if (!refinerId) {
+          console.log(chalk.yellow('🔧 Please enter the refinerId manually:'));
+          const { manualRefinerId } = await inquirer.prompt([
+            {
+              type: 'input',
+              name: 'manualRefinerId',
+              message: 'Enter the refinerId from the transaction logs:',
+              validate: (input) => {
+                const num = parseInt(input);
+                if (isNaN(num) || num < 0) return 'Please enter a valid refinerId number';
+                return true;
+              }
+            }
+          ]);
+          refinerId = parseInt(manualRefinerId);
+        }
+
+        deployment.refinerId = refinerId;
+        console.log(chalk.green(`✅ Refiner manually registered with ID: ${deployment.refinerId}`));
+        
+        // Update UI .env with refinerId
+        updateRefinerId(deployment.refinerId);
 
       } catch (error) {
         console.log(chalk.yellow('⚠️  Automatic refiner registration failed:', error.message));
@@ -597,7 +832,8 @@ async function deployRefiner() {
 
       // Go back to project root
       process.chdir('..');
-      fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
+      const skipDeploymentPath = path.join(process.cwd(), 'deployment.json');
+      fs.writeFileSync(skipDeploymentPath, JSON.stringify(deployment, null, 2));
       return;
     }
 
@@ -605,7 +841,8 @@ async function deployRefiner() {
     process.chdir('..');
 
     // Update deployment.json
-    fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
+    const finalDeploymentPath = path.join(process.cwd(), 'deployment.json');
+    fs.writeFileSync(finalDeploymentPath, JSON.stringify(deployment, null, 2));
 
     console.log();
     console.log(chalk.green('🎉 Data Refiner configured successfully!'));

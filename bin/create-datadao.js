@@ -11,6 +11,7 @@ const { generateTemplate, guideNextSteps, guideGitHubSetup } = require('../lib/g
 const { setupConfig } = require('../lib/config');
 const { validateInput } = require('../lib/validation');
 const { deriveWalletFromPrivateKey } = require('../lib/wallet');
+const { formatDataDAOName, formatTokenName, formatTokenSymbol } = require('../lib/formatting');
 const { program } = require('commander');
 
 // Define CLI command
@@ -167,32 +168,37 @@ async function runProjectScript(projectPath, scriptName) {
 /**
  * Collect configuration from user
  */
-async function collectConfiguration() {
-        console.log('Please provide the following information for your DataDAO:');
+async function collectConfiguration(projectName) {
+  console.log('Please provide the following information for your DataDAO:');
+
+  // Generate smart defaults based on project name
+  const defaultDataDAOName = projectName ? formatDataDAOName(projectName) : 'MyDataDAO';
+  const defaultTokenName = projectName ? formatTokenName(projectName) : 'MyDataToken';
+  const defaultTokenSymbol = projectName ? formatTokenSymbol(projectName) : 'MDT';
 
   const config = await inquirer.prompt([
-          {
-            type: 'input',
-            name: 'dlpName',
-            message: 'DataDAO name:',
-            default: 'MyDataDAO',
-            validate: (input) => input.trim() !== '' || 'DataDAO name is required'
-          },
-          {
-            type: 'input',
-            name: 'tokenName',
-            message: 'Token name:',
-            default: 'MyDataToken',
-            validate: (input) => input.trim() !== '' || 'Token name is required'
-          },
-          {
-            type: 'input',
-            name: 'tokenSymbol',
-            message: 'Token symbol:',
-            default: 'MDT',
-            validate: (input) => input.trim() !== '' || 'Token symbol is required'
-          }
-        ]);
+    {
+      type: 'input',
+      name: 'dlpName',
+      message: 'DataDAO name:',
+      default: defaultDataDAOName,
+      validate: (input) => input.trim() !== '' || 'DataDAO name is required'
+    },
+    {
+      type: 'input',
+      name: 'tokenName',
+      message: 'Token name:',
+      default: defaultTokenName,
+      validate: (input) => input.trim() !== '' || 'Token name is required'
+    },
+    {
+      type: 'input',
+      name: 'tokenSymbol',
+      message: 'Token symbol:',
+      default: defaultTokenSymbol,
+      validate: (input) => input.trim() !== '' || 'Token symbol is required'
+    }
+  ]);
 
         console.log(chalk.blue('\n💰 Wallet Configuration:'));
         console.log('Your wallet is used to deploy contracts and manage your DataDAO.');
@@ -247,13 +253,15 @@ async function collectConfiguration() {
             type: 'input',
             name: 'pinataApiKey',
             message: 'Pinata API Key:',
-            validate: (input) => input.trim() !== '' || 'Pinata API Key is required'
+            validate: (input) => input.trim() !== '' || 'Pinata API Key is required',
+            filter: (input) => input.trim().replace(/^["']|["']$/g, '') // Remove surrounding quotes
           },
           {
             type: 'password',
             name: 'pinataApiSecret',
             message: 'Pinata API Secret:',
-            validate: (input) => input.trim() !== '' || 'Pinata API Secret is required'
+            validate: (input) => input.trim() !== '' || 'Pinata API Secret is required',
+            filter: (input) => input.trim().replace(/^["']|["']$/g, '') // Remove surrounding quotes
           }
         ]);
 
@@ -278,13 +286,15 @@ async function collectConfiguration() {
             type: 'input',
             name: 'googleClientId',
             message: 'Google OAuth Client ID:',
-            validate: (input) => input.trim() !== '' || 'Google OAuth Client ID is required'
+            validate: (input) => input.trim() !== '' || 'Google OAuth Client ID is required',
+            filter: (input) => input.trim().replace(/^["']|["']$/g, '') // Remove surrounding quotes
           },
           {
             type: 'password',
             name: 'googleClientSecret',
             message: 'Google OAuth Client Secret:',
-            validate: (input) => input.trim() !== '' || 'Google OAuth Client Secret is required'
+            validate: (input) => input.trim() !== '' || 'Google OAuth Client Secret is required',
+            filter: (input) => input.trim().replace(/^["']|["']$/g, '') // Remove surrounding quotes
           }
         ]);
 
@@ -351,7 +361,7 @@ async function createDataDAO(projectName) {
 
   try {
     // Collect configuration
-    const config = await collectConfiguration();
+    const config = await collectConfiguration(projectName);
 
     // Generate the project
     console.log();

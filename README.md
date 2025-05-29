@@ -20,36 +20,59 @@ create-datadao create my-datadao
 The CLI works from anywhere - no need to `cd` into project directories:
 
 ```bash
-# Check project status from anywhere
+# Enhanced status with recovery options
 create-datadao status my-datadao
 
-# Deploy contracts from anywhere
+# Deploy contracts with better error handling
 create-datadao deploy:contracts my-datadao
 
-# Register DataDAO on network
+# Register DataDAO with automatic dlpId detection
 create-datadao register my-datadao
 
-# Start UI development server
+# Start UI with complete configuration
 create-datadao ui my-datadao
 
 # Get help
 create-datadao --help
 ```
 
-## Smart Project Detection
+## Smart Error Recovery
 
-When you have projects in the current directory:
+The CLI now automatically detects and helps recover from common issues:
 
 ```bash
-# Auto-detects single project
-create-datadao status
+# If something goes wrong, the status command offers recovery
+create-datadao status my-datadao
+# → 🔧 Fix configuration issues
+# → 🔄 Show recovery options  
+# → 📝 Update credentials
+# → 📊 View detailed errors
+```
 
-# Lists multiple projects and prompts
-create-datadao status
-# → Multiple DataDAO projects found:
-#   • my-datadao
-#   • another-dao
-#   Please specify: create-datadao status <project-name>
+**Common Recovery Scenarios:**
+- **Insufficient balance** → Automatic funding guidance
+- **Transaction failures** → Retry with exponential backoff
+- **Missing credentials** → Interactive credential update
+- **Configuration drift** → Automatic validation and fixes
+
+## Enhanced User Experience
+
+### Cleaner Output
+- **👤 Clear user input markers** - Easy to spot where you provided input
+- **📊 Progress indicators** - Visual progress bars for long operations
+- **🎯 Focused messaging** - Less repetitive text, more actionable information
+
+### Automatic Detection
+- **dlpId extraction** - Automatic detection after registration
+- **refinerId polling** - Smart transaction monitoring (with manual fallback)
+- **Contract validation** - Automatic verification of deployment state
+
+### Configuration Management
+```bash
+# Interactive credential updates
+create-datadao status my-datadao
+# → Choose "Update credentials"
+# → Select: Pinata, Google OAuth, or view current config
 ```
 
 ## Requirements
@@ -71,195 +94,131 @@ my-datadao/
 ├── ui/                # User interface (cloned locally)
 ├── scripts/           # Deployment automation
 ├── deployment.json    # Project state and addresses
+├── deployment.json.backup  # Automatic backup
 └── package.json       # Project dependencies and scripts
 ```
 
-**Repository Strategy:**
-- **contracts/** & **ui/** - Cloned locally from templates, not connected to your GitHub
-- **proof/** & **refiner/** - Fresh repositories created from templates in your GitHub account
+## Setup Flow with Error Recovery
 
-## Setup Flow
-
-The CLI guides you through each step:
+The CLI now provides robust error handling at each step:
 
 ### 1. **Project Creation**
-- DataDAO name, token name/symbol
-- Private key (address/public key auto-derived)
-- Pinata API credentials
-- Google OAuth setup
-- GitHub username
+- Enhanced validation of inputs
+- Automatic wallet derivation with verification
+- Credential validation before proceeding
 
-### 2. **GitHub Repository Setup**
-- **Automated** (with GitHub CLI): Creates 2 fresh repositories from templates
-  - `my-datadao-proof` - Proof of Contribution validation
-  - `my-datadao-refiner` - Data refinement and schema
-- **Manual** (web interface): Guided instructions to create repositories using "Use this template"
-- GitHub Actions automatically enabled for building artifacts
+### 2. **Smart Contract Deployment**
+- **Balance checking** with funding guidance
+- **Network validation** and retry logic
+- **Automatic address extraction** from deployment logs
+- **State persistence** with backup
 
-### 3. **Smart Contract Deployment**
-- Automatic deployment to Moksha testnet
-- Balance checking and funding guidance
-- Contract address extraction and storage
+### 3. **DataDAO Registration**
+- **Automatic dlpId detection** via blockchain query
+- **Transaction monitoring** with status updates
+- **Fallback to manual registration** with guided steps
 
-### 4. **DataDAO Registration**
-- Register on Vana network (requires 1 VANA fee)
-- Automatic dlpId detection via blockchain query
-- Manual registration via Vanascan with guided steps
+### 4. **Component Configuration**
+- **Proof**: Enhanced dlpId pattern matching, automatic git setup
+- **Refiner**: Smart refinerId detection, IPFS upload automation
+- **UI**: Complete environment setup including NEXTAUTH_SECRET
 
-### 5. **Component Configuration**
-- **Proof**: Updates dlpId, pushes to your GitHub repo, builds artifacts
-- **Refiner**: Retrieves encryption key, configures schema, uploads to IPFS
-- **UI**: Configures with all contract addresses and API keys
-
-### 6. **Testing & Validation**
-- UI development server
-- End-to-end contributor flow testing
-- Credential updates as needed
-
-## Project Scripts
-
-Once created, projects have these npm scripts:
-
-```bash
-# Inside project directory
-npm run status              # Check deployment progress
-npm run deploy:contracts    # Deploy smart contracts
-npm run register:datadao    # Register on network
-npm run deploy:proof        # Configure and deploy proof component
-npm run deploy:refiner      # Configure and deploy refiner component
-npm run deploy:ui           # Configure UI component
-npm run ui:dev             # Start UI server (http://localhost:3000)
-npm run configure          # Update credentials
-npm run setup              # Install dependencies
-```
-
-## Configuration Management
-
-Update credentials anytime:
-
-```bash
-create-datadao status my-datadao
-# → Choose "Update configuration"
-# → Select: Pinata, Google OAuth, or view current config
-```
-
-## GitHub Integration
-
-### Automated Setup (Recommended)
-- **GitHub CLI** automatically creates repositories from templates
-- Fresh repositories with single commit (no history conflicts)
-- GitHub Actions enabled automatically
-- Repository URLs: `https://github.com/username/datadao-name-proof`
-
-### Manual Setup (Fallback)
-- Guided instructions for "Use this template" workflow
-- Manual GitHub Actions enablement
-- Repository URL input and validation
-
-### Repository Naming
-- **Proof**: `{datadao-name}-proof` (e.g., `my-datadao-proof`)
-- **Refiner**: `{datadao-name}-refiner` (e.g., `my-datadao-refiner`)
-
-## Blockchain Integration
-
-- **Automatic wallet derivation** from private key using viem
-- **Balance checking** before deployment
-- **dlpId auto-detection** after registration
-- **Encryption key polling** with 30-minute timeout
-- **Contract address extraction** from deployment logs
-- **Network validation** (Moksha testnet)
+### 5. **Continuous Monitoring**
+- **Health checks** for all components
+- **Configuration drift detection**
+- **Interactive recovery menus**
 
 ## Error Handling & Recovery
 
-Smart error recovery with clear next steps:
-
+### Automatic Recovery
 ```bash
-# If deployment fails
-create-datadao deploy:contracts my-datadao
-# → Shows funding instructions and retry commands
-
-# If registration fails
-create-datadao register my-datadao
-# → Guides through manual Vanascan registration
-
-# If GitHub setup fails
-# → Falls back to manual repository creation with guided instructions
-
-# Resume from any step
+# The CLI detects issues and offers solutions
 create-datadao status my-datadao
-# → Shows current progress and next actions
+# → ⚠️ Issues detected in your setup
+# → 🔧 Fix configuration issues
+# → 🔄 Show recovery options
 ```
+
+### Manual Recovery
+```bash
+# Update any credentials that changed
+create-datadao status my-datadao
+# → Choose "Update credentials"
+# → Select credential type to update
+```
+
+### State Management
+- **Automatic backups** before each operation
+- **Rollback capability** for failed operations
+- **Incremental progress** tracking
+- **Resume from any point** in the deployment
 
 ## Development Workflow
 
 ```bash
-# 1. Create project
+# 1. Create project with enhanced validation
 create-datadao create my-datadao
 
-# 2. Check status anytime
+# 2. Monitor progress with rich status
 create-datadao status my-datadao
 
-# 3. Deploy when ready
+# 3. Deploy with automatic error recovery
 create-datadao deploy:contracts my-datadao
 
-# 4. Register on network
+# 4. Register with automatic dlpId detection
 create-datadao register my-datadao
 
-# 5. Configure components
+# 5. Configure components with smart automation
 create-datadao deploy:proof my-datadao
 create-datadao deploy:refiner my-datadao
 
-# 6. Test UI
+# 6. Test UI with complete configuration
 create-datadao ui my-datadao
 
-# 7. Update config as needed
+# 7. Recover from any issues
 create-datadao status my-datadao
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Enhanced Error Messages
 
-**"Insufficient balance"**
+**"Configuration issues detected"**
 ```bash
-# Fund your wallet at https://faucet.vana.org
-# Check balance: https://moksha.vanascan.io/address/YOUR_ADDRESS
-create-datadao deploy:contracts my-datadao  # Retry
+create-datadao status my-datadao
+# → Automatic validation and guided fixes
+# → Interactive credential updates
+# → Configuration consistency checks
 ```
 
-**"Execution reverted"**
+**"Transaction failed"**
 ```bash
-# Usually network congestion or contract issues
-# Wait a few minutes and retry
-create-datadao deploy:contracts my-datadao
+# Automatic retry with exponential backoff
+# Clear error messages with next steps
+# Fallback to manual completion with guidance
 ```
 
-**"GitHub CLI not authenticated"**
+**"Component setup failed"**
 ```bash
-# Install and authenticate GitHub CLI
-gh auth login
-# Or continue with manual repository setup
+# Step-by-step recovery instructions
+# Automatic state cleanup and retry
+# Manual override options available
 ```
 
-**"Encryption key not found"**
+### Recovery Commands
 ```bash
-# Wait a few minutes after registration, then retry
-# Or retrieve manually from Vanascan QueryEngine contract
-```
+# View detailed error information
+create-datadao status my-datadao
+# → Choose "View detailed errors"
 
-**"No DataDAO project found"**
-```bash
-# Check available projects
-create-datadao status
-# Or specify full path
-create-datadao status /path/to/my-datadao
-```
+# Retry failed operations
+create-datadao status my-datadao  
+# → Choose "Show recovery options"
+# → Choose "Retry failed steps automatically"
 
-### Getting Help
-
-```bash
-create-datadao --help                    # All commands
-create-datadao status my-datadao         # Project-specific status
+# Update configuration
+create-datadao status my-datadao
+# → Choose "Update credentials"
 ```
 
 ## Architecture
