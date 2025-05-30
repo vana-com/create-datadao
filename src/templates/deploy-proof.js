@@ -138,19 +138,24 @@ async function handleAutomaticDeployment(deployment) {
     console.log(chalk.yellow("This usually takes 2-3 minutes."));
     console.log();
 
+    console.log(chalk.yellow("⚠️  IMPORTANT: Wait for the NEW build to complete!"));
+    console.log(chalk.yellow("   Don't use an existing/old release - you need the fresh build."));
+    console.log();
+
     console.log(chalk.cyan("📋 Next steps:"));
     console.log(
       "1. Visit: " + chalk.yellow(`${deployment.proofRepo}/releases`)
     );
-    console.log("2. Find the latest release and copy the .tar.gz URL");
-    console.log("3. Return here and enter the URL below");
+    console.log("2. " + chalk.cyan("WAIT") + " for a new release to appear (with your latest changes)");
+    console.log("3. Copy the .tar.gz URL from the " + chalk.yellow("newest") + " release");
+    console.log("4. Return here and enter the URL below");
 
     // Wait for user to get the URL
     const { proofUrl } = await inquirer.prompt([
       {
         type: "input",
         name: "proofUrl",
-        message: "Enter the .tar.gz URL from GitHub Releases:",
+        message: "Enter the .tar.gz URL from the NEWEST GitHub Release:",
         validate: (input) => {
           if (input.trim() === "") return "Proof URL is required";
           if (!input.includes(".tar.gz"))
@@ -189,14 +194,17 @@ async function handleManualDeployment(deployment) {
   console.log(chalk.yellow("2. Monitor the build:"));
   console.log(chalk.cyan(`   ${deployment.proofRepo}/actions`));
   console.log();
-  console.log(chalk.yellow("3. Get the artifact URL from Releases section"));
+  console.log(chalk.yellow("⚠️  IMPORTANT: Wait for the NEW build to complete!"));
+  console.log(chalk.yellow("   Don't use an existing/old release."));
+  console.log();
+  console.log(chalk.yellow("3. Get the artifact URL from the " + chalk.yellow("newest") + " release in Releases section"));
   console.log();
 
   const { proofUrl } = await inquirer.prompt([
     {
       type: "input",
       name: "proofUrl",
-      message: "Enter the .tar.gz URL when ready:",
+      message: "Enter the .tar.gz URL from the NEWEST release when ready:",
       validate: (input) => {
         if (input.trim() === "") return "Proof URL is required";
         if (!input.includes(".tar.gz"))

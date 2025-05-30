@@ -45,13 +45,13 @@ function updateRefinerId(refinerId) {
     const uiEnvPath = path.join(process.cwd(), '..', 'ui', '.env');
     if (fs.existsSync(uiEnvPath)) {
       let uiEnv = fs.readFileSync(uiEnvPath, 'utf8');
-      
+
       if (uiEnv.includes('REFINER_ID=')) {
         uiEnv = uiEnv.replace(/REFINER_ID=.*/, `REFINER_ID=${refinerId}`);
       } else {
         uiEnv += `\nREFINER_ID=${refinerId}\n`;
       }
-      
+
       fs.writeFileSync(uiEnvPath, uiEnv);
       console.log(chalk.green('✅ UI configuration updated with refinerId'));
     }
@@ -133,7 +133,7 @@ async function getEncryptionKey(dlpId) {
 async function registerRefinerOnChain(dlpId, refinerName, schemaUrl, refinerUrl, publicKey, privateKey) {
   try {
     console.log(chalk.blue('🔗 Registering refiner on-chain automatically...'));
-    
+
     // Create wallet client for sending transactions
     const account = privateKeyToAccount(privateKey);
     const walletClient = createWalletClient({
@@ -191,7 +191,7 @@ async function registerRefinerOnChain(dlpId, refinerName, schemaUrl, refinerUrl,
       console.log(chalk.cyan(`Gas used: ${receipt.gasUsed}`));
 
       // Extract refinerId from logs
-      const refinerAddedLog = receipt.logs.find(log => 
+      const refinerAddedLog = receipt.logs.find(log =>
         log.address.toLowerCase() === REFINER_REGISTRY_ADDRESS.toLowerCase()
       );
 
@@ -213,7 +213,7 @@ async function registerRefinerOnChain(dlpId, refinerName, schemaUrl, refinerUrl,
 
   } catch (error) {
     console.log(chalk.red('❌ Automatic registration failed:'), error.message);
-    
+
     if (error.message.includes('insufficient funds')) {
       console.log(chalk.yellow('💡 Make sure your wallet has enough VANA tokens for gas fees'));
     } else if (error.message.includes('execution reverted')) {
@@ -222,7 +222,7 @@ async function registerRefinerOnChain(dlpId, refinerName, schemaUrl, refinerUrl,
       console.log('  • Invalid parameters');
       console.log('  • DLP not properly registered');
     }
-    
+
     return null;
   }
 }
@@ -374,7 +374,7 @@ async function deployRefiner() {
     try {
       // Check if Docker daemon is running first
       execSync('docker info', { stdio: 'pipe' });
-      
+
       // Build and run the refiner to generate schema
       execSync('docker build -t refiner .', { stdio: 'pipe' });
       execSync('docker run --rm -v $(pwd)/input:/input -v $(pwd)/output:/output --env-file .env refiner', { stdio: 'pipe' });
@@ -386,7 +386,7 @@ async function deployRefiner() {
         console.log(chalk.yellow('⚠️  Schema generation may have failed, but continuing...'));
       }
     } catch (error) {
-      if (error.message.includes('Cannot connect to the Docker daemon') || 
+      if (error.message.includes('Cannot connect to the Docker daemon') ||
           error.message.includes('docker daemon') ||
           error.message.includes('daemon running')) {
         console.log(chalk.yellow('⚠️  Docker daemon is not running!'));
@@ -441,10 +441,12 @@ async function deployRefiner() {
         console.log(chalk.blue('⏳ GitHub Actions is now building your refiner...'));
         console.log(chalk.yellow('This usually takes 2-3 minutes.'));
         console.log();
+        console.log(chalk.yellow('⚠️  IMPORTANT: Wait for the NEW build to complete!'));
+        console.log(chalk.yellow('   Don\'t use an existing/old release - you need the fresh build.'));
+        console.log();
         console.log(chalk.cyan('📋 Next steps:'));
         console.log('1. Visit: ' + chalk.yellow(`${deployment.refinerRepo}/releases`));
-        console.log('2. Check if a build artifact is available (.tar.gz file)');
-        console.log('3. If no artifact yet, wait a few minutes and refresh');
+        console.log('2. ' + chalk.cyan('WAIT') + ' for a new release to appear (with your latest changes)');
         console.log();
         console.log(chalk.gray('💡 Note: If you just created the repository, the build may have already completed automatically.'));
         console.log();
@@ -559,26 +561,26 @@ async function deployRefiner() {
         try {
           // Get the private key from contracts/.env
           const contractsEnvPath = path.join(process.cwd(), '..', 'contracts', '.env');
-          
+
           if (!fs.existsSync(contractsEnvPath)) {
             throw new Error('contracts/.env file not found');
           }
-          
+
           const contractsEnv = fs.readFileSync(contractsEnvPath, 'utf8');
           const privateKeyMatch = contractsEnv.match(/DEPLOYER_PRIVATE_KEY=(.+)/);
-          
+
           if (!privateKeyMatch) {
             throw new Error('DEPLOYER_PRIVATE_KEY not found in contracts/.env');
           }
-          
+
           const privateKey = privateKeyMatch[1].trim();
-          
+
           // Get deployment info for other parameters
           const innerDeploymentPath = path.join(process.cwd(), '..', 'deployment.json');
           const innerDeployment = JSON.parse(fs.readFileSync(innerDeploymentPath, 'utf8'));
 
           const refinerName = `${innerDeployment.dlpName} Refiner`;
-          
+
           // Try automatic registration first
           const refinerId = await registerRefinerOnChain(
             innerDeployment.dlpId,
@@ -592,7 +594,7 @@ async function deployRefiner() {
           if (refinerId) {
             deployment.refinerId = refinerId;
             console.log(chalk.green(`✅ Refiner automatically registered with ID: ${refinerId}`));
-            
+
             // Update UI .env with refinerId
             updateRefinerId(refinerId);
           } else {
@@ -628,10 +630,10 @@ async function deployRefiner() {
                 }
               }
             ]);
-            
+
             deployment.refinerId = parseInt(manualRefinerId);
             console.log(chalk.green(`✅ Refiner manually registered with ID: ${deployment.refinerId}`));
-            
+
             // Update UI .env with refinerId
             updateRefinerId(deployment.refinerId);
           }
@@ -675,6 +677,9 @@ async function deployRefiner() {
       console.log(chalk.cyan(`   git push -u origin main`));
       console.log();
       console.log(chalk.yellow('2. Wait for GitHub Actions to complete'));
+      console.log();
+      console.log(chalk.yellow('⚠️  IMPORTANT: Wait for the NEW build to complete!'));
+      console.log(chalk.yellow('   Don\'t use an existing/old release.'));
       console.log();
       console.log(chalk.yellow('3. Upload schema.json to Pinata IPFS'));
       console.log();
@@ -746,7 +751,7 @@ async function deployRefiner() {
         // Try to automatically extract refinerId from recent transactions
         console.log(chalk.blue('🔍 Attempting to automatically detect refinerId...'));
         console.log(chalk.yellow('Please submit the transaction in Vanascan, then press Enter to continue.'));
-        
+
         await inquirer.prompt([
           {
             type: 'input',
@@ -758,18 +763,18 @@ async function deployRefiner() {
         // Poll for recent transactions to find refinerId
         let refinerId = null;
         const maxAttempts = 12; // 2 minutes with 10-second intervals
-        
+
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
             console.log(chalk.blue(`🔍 Checking for transaction confirmation (${attempt}/${maxAttempts})...`));
-            
+
             // Here we would implement transaction polling
             // For now, fall back to manual input after a few attempts
             if (attempt >= 3) {
               console.log(chalk.yellow('⚠️  Automatic detection taking longer than expected.'));
               break;
             }
-            
+
             await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
           } catch (error) {
             console.log(chalk.yellow(`Attempt ${attempt} failed: ${error.message}`));
@@ -795,7 +800,7 @@ async function deployRefiner() {
 
         deployment.refinerId = refinerId;
         console.log(chalk.green(`✅ Refiner manually registered with ID: ${deployment.refinerId}`));
-        
+
         // Update UI .env with refinerId
         updateRefinerId(deployment.refinerId);
 
