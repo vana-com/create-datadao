@@ -1,7 +1,16 @@
 const fs = require('fs-extra');
 const path = require('path');
-const inquirer = require('inquirer');
 const chalk = require('chalk');
+
+// Verify we're in the correct directory
+if (!fs.existsSync(path.join(process.cwd(), 'deployment.json'))) {
+  console.error(chalk.red('❌ Error: Must run this command from your DataDAO project directory'));
+  console.error(chalk.yellow('📁 Current directory:'), process.cwd());
+  console.error(chalk.yellow('💡 Try: cd <your-project-name> && npm run deploy:ui'));
+  process.exit(1);
+}
+
+const inquirer = require('inquirer');
 const DeploymentStateManager = require('./state-manager');
 
 /**
