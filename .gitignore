@@ -19,6 +19,11 @@ out/
 .env.test.local
 .env.production.local
 
+# Test output and credentials
+test-output/
+__tests__/config/real-test-config.json
+createdatadaokeys
+
 # Debug
 npm-debug.log*
 yarn-debug.log*

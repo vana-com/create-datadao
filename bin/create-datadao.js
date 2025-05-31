@@ -12,6 +12,7 @@ const { setupConfig } = require('../lib/config');
 const { validateInput } = require('../lib/validation');
 const { deriveWalletFromPrivateKey } = require('../lib/wallet');
 const { formatDataDAOName, formatTokenName, formatTokenSymbol } = require('../lib/formatting');
+const { generatePrivateKey, privateKeyToAccount } = require('viem/accounts');
 const { program } = require('commander');
 
 // Define CLI command
@@ -24,8 +25,14 @@ program
 program
   .command('create [project-name]')
   .description('Create a new DataDAO project')
-  .action(async (projectName) => {
-    await createDataDAO(projectName);
+  .option('-c, --config <path>', 'Load configuration from JSON file')
+  .option('-q, --quick', 'Quick setup with minimal prompts')
+  .action(async (projectName, options) => {
+    if (options.quick) {
+      await createDataDAOQuick(projectName);
+    } else {
+      await createDataDAO(projectName, options);
+    }
   });
 
 // Status command - works from anywhere
@@ -94,6 +101,23 @@ function findProjectDir(providedPath) {
         }
 
   throw new Error('No DataDAO project found. Run from project directory or specify path.');
+}
+
+/**
+ * Show helpful exit message with available commands
+ */
+function showExitMessage() {
+  console.log();
+  console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log(chalk.blue.bold('📌 Useful Commands:'));
+  console.log();
+  console.log(chalk.cyan('  create-datadao status     ') + '- Check progress & resume setup');
+  console.log(chalk.cyan('  create-datadao status .   ') + '- Status for current directory');
+  console.log();
+  console.log(chalk.gray('💡 Tip: Run commands from your project directory'));
+  console.log(chalk.gray('💡 Tip: Provide config via JSON: --config my-config.json'));
+  console.log(chalk.gray('💡 Tip: Get testnet VANA at https://faucet.vana.org'));
+  console.log(chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
 }
 
 /**
@@ -334,12 +358,38 @@ async function collectConfiguration(projectName) {
 /**
  * Main DataDAO creation flow
  */
-async function createDataDAO(projectName) {
+async function createDataDAO(projectName, options = {}) {
   console.log(chalk.blue('🚀 Welcome to DataDAO Creator!'));
   console.log();
 
+  // Load configuration from file if provided
+  let config = null;
+  if (options.config) {
+    try {
+      const configPath = path.resolve(options.config);
+      console.log(chalk.blue(`📄 Loading configuration from ${configPath}`));
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      
+      // Use project name from config if not provided as argument
+      if (!projectName && config.projectName) {
+        projectName = config.projectName;
+      }
+      
+      console.log(chalk.green('✅ Configuration loaded successfully'));
+      console.log();
+    } catch (error) {
+      console.error(chalk.red(`❌ Failed to load config file: ${error.message}`));
+      process.exit(1);
+    }
+  }
+
   // Get project name if not provided
   if (!projectName) {
+    if (config) {
+      console.error(chalk.red('❌ Project name not found in config file or command line'));
+      process.exit(1);
+    }
+    
     const { name } = await inquirer.prompt([
       {
         type: 'input',
@@ -360,13 +410,13 @@ async function createDataDAO(projectName) {
   }
 
   try {
-    // Collect configuration
-    const config = await collectConfiguration(projectName);
+    // Collect configuration (use loaded config or prompt user)
+    const finalConfig = config ? config : await collectConfiguration(projectName);
 
     // Generate the project
     console.log();
     console.log(chalk.blue('📦 Generating your DataDAO project...'));
-      await generateTemplate(targetDir, config);
+      await generateTemplate(targetDir, finalConfig);
 
     console.log();
       console.log(chalk.green('✅ DataDAO project created successfully!'));
@@ -376,27 +426,31 @@ async function createDataDAO(projectName) {
 
     // Show wallet credentials with confirmation
     console.log(chalk.green('✓ Wallet credentials derived successfully'));
-    console.log(chalk.cyan('Address:'), config.address);
-    console.log(chalk.cyan('Public Key:'), config.publicKey);
+    console.log(chalk.cyan('Address:'), finalConfig.address);
+    console.log(chalk.cyan('Public Key:'), finalConfig.publicKey);
     console.log(chalk.yellow('💡 Make sure to fund this address with testnet VANA!'));
       console.log();
 
-    // Add confirmation step
-    const { confirmWallet } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'confirmWallet',
-        message: 'Have you reviewed and saved these wallet credentials?',
-        default: false
-      }
-    ]);
+    // Add confirmation step (skip if using config file for headless operation)
+    if (!config) {
+      const { confirmWallet } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirmWallet',
+          message: 'Have you reviewed and saved these wallet credentials?',
+          default: false
+        }
+      ]);
 
-    if (!confirmWallet) {
-      console.log(chalk.yellow('Please save your wallet credentials before continuing.'));
-      console.log(chalk.yellow('You can resume setup later with: create-datadao status ' + projectName));
-      console.log();
-        return;
-      }
+      if (!confirmWallet) {
+        console.log(chalk.yellow('Please save your wallet credentials before continuing.'));
+        console.log(chalk.yellow('You can resume setup later with: create-datadao status ' + projectName));
+        console.log();
+          return;
+        }
+    } else {
+      console.log(chalk.blue('📝 Using provided wallet configuration for headless deployment'));
+    }
 
     // Deploy contracts immediately
     console.log();
@@ -413,7 +467,7 @@ async function createDataDAO(projectName) {
       console.log(chalk.green('✅ Smart contracts deployed successfully!'));
 
       // Guide through next steps
-      await guideNextSteps(targetDir, config);
+      await guideNextSteps(targetDir, finalConfig);
 
     } catch (deployError) {
       console.log();
@@ -421,7 +475,7 @@ async function createDataDAO(projectName) {
       console.log(chalk.yellow('This is usually due to insufficient VANA tokens or network issues.'));
       console.log();
       console.log(chalk.blue('🎯 To continue setup:'));
-      console.log(`  1. Fund your wallet: ${config.address}`);
+      console.log(`  1. Fund your wallet: ${finalConfig.address}`);
       console.log(`  2. Resume deployment: create-datadao deploy:contracts ${projectName}`);
       console.log(`  3. Check status: create-datadao status ${projectName}`);
       console.log();
@@ -433,4 +487,117 @@ async function createDataDAO(projectName) {
     }
 }
 
+/**
+ * Quick DataDAO creation with minimal prompts
+ */
+async function createDataDAOQuick(projectName) {
+  console.log(chalk.blue.bold('🚀 Quick Setup Mode'));
+  console.log(chalk.gray('Creating DataDAO with smart defaults...'));
+  console.log();
+
+  // Get project name if not provided
+  if (!projectName) {
+    const { name } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'name',
+        message: 'DataDAO project name:',
+        default: 'my-datadao',
+        validate: (input) => input.trim() !== '' || 'Project name is required'
+      }
+    ]);
+    projectName = name;
+  }
+
+  const targetDir = path.resolve(projectName);
+
+  // Check if directory already exists
+  if (fs.existsSync(targetDir)) {
+    console.error(chalk.red(`Directory ${projectName} already exists!`));
+    process.exit(1);
+  }
+
+  try {
+    // Generate wallet automatically
+    console.log(chalk.blue('🔑 Generating wallet...'));
+    const wallet = generateWallet();
+    
+    console.log();
+    console.log(chalk.green('✅ Generated wallet:'));
+    console.log(chalk.cyan(`   Address: ${wallet.address}`));
+    console.log(chalk.red(`   Private Key: ${wallet.privateKey}`));
+    console.log(chalk.yellow('   ⚠️  Save this private key securely!'));
+    console.log();
+
+    // Minimal config with smart defaults
+    const config = {
+      projectName: projectName,
+      dlpName: formatDataDAOName(projectName),
+      tokenName: formatTokenName(projectName),
+      tokenSymbol: formatTokenSymbol(projectName),
+      ...wallet,
+      githubUsername: null, // Defer until needed
+      pinataApiKey: null,   // Defer until needed
+      pinataApiSecret: null, // Defer until needed
+      googleClientId: null,  // Defer until needed
+      googleClientSecret: null, // Defer until needed
+      network: 'moksha',
+      rpcUrl: 'https://rpc.moksha.vana.org',
+      chainId: 14800
+    };
+
+    // Generate project
+    console.log(chalk.blue('📦 Generating your DataDAO project...'));
+    await generateTemplate(targetDir, config);
+
+    console.log();
+    console.log(chalk.green('✅ Project created successfully!'));
+    console.log();
+    console.log(chalk.blue('📁 Project location:'), targetDir);
+    console.log();
+
+    // Show next steps
+    console.log(chalk.blue.bold('🎯 Next steps:'));
+    console.log();
+    console.log(chalk.cyan('1. Fund your wallet:'));
+    console.log(`   Visit: ${chalk.underline('https://faucet.vana.org')}`);
+    console.log(`   Address: ${wallet.address}`);
+    console.log();
+    console.log(chalk.cyan('2. Complete setup:'));
+    console.log(`   cd ${projectName}`);
+    console.log('   create-datadao status');
+    console.log();
+    console.log(chalk.cyan('3. Deploy when ready:'));
+    console.log('   npm run deploy:contracts');
+    console.log();
+    console.log(chalk.gray('💡 Use "create-datadao status" anytime to continue the setup'));
+
+  } catch (error) {
+    console.error(chalk.red('Error creating DataDAO:'), error.message);
+    process.exit(1);
+  }
+}
+
+/**
+ * Generate a new wallet using viem
+ */
+function generateWallet() {
+  const privateKey = generatePrivateKey();
+  const account = privateKeyToAccount(privateKey);
+  
+  return {
+    privateKey,
+    address: account.address,
+    publicKey: account.publicKey
+  };
+}
+
 program.parse(process.argv);
+
+// Add exit handlers to show helpful commands
+process.on('exit', showExitMessage);
+process.on('SIGINT', () => {
+  console.log('\n\n' + chalk.yellow('⚠️  Setup interrupted'));
+  showExitMessage();
+  process.exit(1);
+});

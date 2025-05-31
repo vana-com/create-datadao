@@ -4,6 +4,14 @@ const path = require("path");
 const chalk = require("chalk");
 const { execSync } = require("child_process");
 
+// Verify we're in the correct directory
+if (!fs.existsSync(path.join(process.cwd(), 'deployment.json'))) {
+  console.error(chalk.red('❌ Error: Must run this command from your DataDAO project directory'));
+  console.error(chalk.yellow('📁 Current directory:'), process.cwd());
+  console.error(chalk.yellow('💡 Try: cd <your-project-name> && npm run deploy:proof'));
+  process.exit(1);
+}
+
 /**
  * Update dlpId in proof configuration file with flexible regex patterns
  */

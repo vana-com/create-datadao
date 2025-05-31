@@ -1,0 +1,17 @@
+{
+  "projectName": "test-datadao",
+  "dlpName": "TestDataDAO", 
+  "tokenName": "TestDataToken",
+  "tokenSymbol": "TDT",
+  "privateKey": "0x0000000000000000000000000000000000000000000000000000000000000001",
+  "address": "0x0000000000000000000000000000000000000000",
+  "publicKey": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+  "pinataApiKey": "test-pinata-api-key",
+  "pinataApiSecret": "test-pinata-api-secret",
+  "googleClientId": "test-client-id.apps.googleusercontent.com",
+  "googleClientSecret": "test-client-secret",
+  "githubUsername": "test-user",
+  "network": "moksha",
+  "rpcUrl": "https://rpc.moksha.vana.org",
+  "chainId": 14800
+}
