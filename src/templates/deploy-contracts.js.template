@@ -83,10 +83,13 @@ async function deployContracts() {
     console.log(chalk.cyan('📋 Deployment Output:'));
     console.log(output);
 
-    // Extract contract addresses from output - updated patterns for vana-smart-contracts
-    const tokenMatch = output.match(/(?:Token|DAT).*?(?:deployed|reusing).*?(?:at|to)\s+(0x[a-fA-F0-9]{40})/i);
-    const dlpMatch = output.match(/(?:DataLiquidityPool|DLP).*?(?:deployed|reusing).*?(?:at|to)\s+(0x[a-fA-F0-9]{40})/i);
-    const vestingMatch = output.match(/(?:Vesting|VestingWallet).*?(?:deployed|reusing).*?(?:at|to)\s+(0x[a-fA-F0-9]{40})/i);
+    // Extract contract addresses from output - look for specific patterns
+    const tokenMatch = output.match(/Token Address:\s*(0x[a-fA-F0-9]{40})/);
+    const proxyMatch = output.match(/DataLiquidityPoolProxy\s+deployed\s+to:\s*(0x[a-fA-F0-9]{40})/);
+    const vestingMatch = output.match(/Vesting Wallet Address:\s*(0x[a-fA-F0-9]{40})/);
+    
+    // Also look for "Proxy deployed to:" pattern in case format changes
+    const altProxyMatch = output.match(/Proxy deployed to:\s*(0x[a-fA-F0-9]{40})/);
 
     if (!tokenMatch) {
       console.error(chalk.red('Error: Failed to extract token address from deployment output.'));
@@ -96,49 +99,134 @@ async function deployContracts() {
     }
 
     const tokenAddress = tokenMatch[1];
+    
+    // Get proxy address from either pattern
+    const proxyAddress = proxyMatch ? proxyMatch[1] : (altProxyMatch ? altProxyMatch[1] : null);
+    
+    if (!proxyAddress) {
+      console.error(chalk.red('Error: Failed to extract DataLiquidityPool proxy address from deployment output.'));
+      console.error(chalk.yellow('Please check deployment logs above for the proxy address.'));
+      process.exit(1);
+    }
 
-    // Update deployment.json with state management
+    // Update deployment.json with contract addresses
+    deployment.contracts = {
+      tokenAddress: tokenAddress,
+      proxyAddress: proxyAddress,
+      vestingAddress: vestingMatch ? vestingMatch[1] : null
+    };
+    
+    // Keep backward compatibility
     deployment.tokenAddress = tokenAddress;
+    deployment.proxyAddress = proxyAddress;
+    
     deployment.state = deployment.state || {};
     deployment.state.contractsDeployed = true;
 
     console.log(chalk.green('✅ Contracts deployed successfully!'));
     console.log(chalk.cyan('Token Address:'), tokenAddress);
-
-    if (dlpMatch) {
-      const dlpAddress = dlpMatch[1];
-      deployment.dlpAddress = dlpAddress;
-      console.log(chalk.cyan('DLP Address:'), dlpAddress);
-    }
-
+    console.log(chalk.cyan('DLP Proxy Address:'), proxyAddress);
+    
     if (vestingMatch) {
       const vestingAddress = vestingMatch[1];
       deployment.vestingAddress = vestingAddress;
       console.log(chalk.cyan('Vesting Address:'), vestingAddress);
     }
 
-    fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
+    // Save back to parent directory since we changed to contracts dir
+    fs.writeFileSync(path.resolve('..', 'deployment.json'), JSON.stringify(deployment, null, 2));
 
   } catch (error) {
     console.error(chalk.red('Contract deployment failed:'));
     console.error(error.message);
 
-    // Check if it's a known error type
-    if (error.message.includes('insufficient funds') || error.message.includes('INSUFFICIENT_FUNDS')) {
-      console.error(chalk.yellow('💡 This appears to be a funding issue.'));
-      console.error(chalk.yellow('Please ensure your wallet has sufficient VANA tokens.'));
-    } else if (error.message.includes('execution reverted')) {
-      console.error(chalk.yellow('💡 Transaction was reverted by the network.'));
-      console.error(chalk.yellow('This could be due to:'));
-      console.error(chalk.yellow('  - Insufficient gas or funds'));
-      console.error(chalk.yellow('  - Contract deployment restrictions'));
-      console.error(chalk.yellow('  - Network congestion'));
+    // Comprehensive error analysis
+    const errorLower = error.message.toLowerCase();
+    let suggestedAction = '';
+    let canRetry = false;
+    
+    if (errorLower.includes('insufficient funds') || errorLower.includes('insufficient_funds')) {
+      suggestedAction = 'funding';
+      console.error(chalk.yellow('\n💡 Insufficient funds detected'));
+      console.error(chalk.yellow('Your wallet needs VANA tokens to deploy contracts.'));
+    } else if (errorLower.includes('nonce') || errorLower.includes('already known')) {
+      suggestedAction = 'nonce';
+      canRetry = true;
+      console.error(chalk.yellow('\n💡 Transaction nonce issue detected'));
+      console.error(chalk.yellow('This usually happens when a previous transaction is pending.'));
+    } else if (errorLower.includes('timeout') || errorLower.includes('network')) {
+      suggestedAction = 'network';
+      canRetry = true;
+      console.error(chalk.yellow('\n💡 Network connectivity issue detected'));
+      console.error(chalk.yellow('The network may be congested or unreachable.'));
+    } else if (errorLower.includes('reverted') || errorLower.includes('execution failed')) {
+      suggestedAction = 'reverted';
+      console.error(chalk.yellow('\n💡 Transaction was reverted'));
+      console.error(chalk.yellow('The contract deployment was rejected by the network.'));
+    } else if (errorLower.includes('enoent') || errorLower.includes('command not found')) {
+      suggestedAction = 'setup';
+      console.error(chalk.yellow('\n💡 Hardhat not found'));
+      console.error(chalk.yellow('Please ensure dependencies are installed.'));
     }
 
-    console.error(chalk.yellow('\nTroubleshooting:'));
-    console.error(chalk.yellow('1. Check your wallet balance at https://moksha.vanascan.io'));
-    console.error(chalk.yellow('2. Get more VANA from https://faucet.vana.org'));
-    console.error(chalk.yellow('3. Wait a few minutes and try again'));
+    // Provide specific recovery steps
+    console.error(chalk.cyan('\n📋 Recovery Steps:'));
+    
+    switch(suggestedAction) {
+      case 'funding':
+        console.error(chalk.white('1. Check balance: ') + chalk.blue('https://moksha.vanascan.io/address/' + deployment.address));
+        console.error(chalk.white('2. Get testnet VANA: ') + chalk.blue('https://faucet.vana.org'));
+        console.error(chalk.white('3. Wait for funds to arrive (1-2 minutes)'));
+        console.error(chalk.white('4. Run this command again: ') + chalk.green('npm run deploy-contracts'));
+        break;
+        
+      case 'nonce':
+        console.error(chalk.white('1. Wait 30 seconds for pending transactions'));
+        console.error(chalk.white('2. Check transaction status: ') + chalk.blue('https://moksha.vanascan.io/address/' + deployment.address));
+        console.error(chalk.white('3. Retry deployment: ') + chalk.green('npm run deploy-contracts'));
+        break;
+        
+      case 'network':
+        console.error(chalk.white('1. Check your internet connection'));
+        console.error(chalk.white('2. Verify RPC is accessible: ') + chalk.blue('https://rpc.moksha.vana.org'));
+        console.error(chalk.white('3. Wait 2-3 minutes for network congestion'));
+        console.error(chalk.white('4. Retry deployment: ') + chalk.green('npm run deploy-contracts'));
+        break;
+        
+      case 'setup':
+        console.error(chalk.white('1. Install dependencies: ') + chalk.green('npm install'));
+        console.error(chalk.white('2. Clean and reinstall: ') + chalk.green('rm -rf node_modules && npm install'));
+        console.error(chalk.white('3. Retry deployment: ') + chalk.green('npm run deploy-contracts'));
+        break;
+        
+      default:
+        console.error(chalk.white('1. Check deployment logs above for details'));
+        console.error(chalk.white('2. Verify your configuration in deployment.json'));
+        console.error(chalk.white('3. Try running from project root directory'));
+        console.error(chalk.white('4. Contact support with the error message'));
+    }
+    
+    // Save partial state if we got any addresses
+    if (tokenMatch || proxyMatch || vestingMatch) {
+      console.error(chalk.yellow('\n⚠️  Partial deployment detected. Saving progress...'));
+      const partialState = {
+        ...deployment,
+        state: deployment.state || {},
+        partial: true
+      };
+      if (tokenMatch) partialState.tokenAddress = tokenMatch[1];
+      if (proxyMatch) partialState.proxyAddress = proxyMatch[1];
+      if (vestingMatch) partialState.vestingAddress = vestingMatch[1];
+      
+      fs.writeFileSync(deploymentPath, JSON.stringify(partialState, null, 2));
+      console.error(chalk.green('✅ Partial progress saved to deployment.json'));
+    }
+    
+    // Offer retry option for retriable errors
+    if (canRetry) {
+      console.error(chalk.cyan('\n🔄 This error may be temporary.'));
+      console.error(chalk.white('You can retry with: ') + chalk.green('npm run deploy-contracts'));
+    }
 
     process.exit(1);
   }

@@ -172,9 +172,20 @@ async function performAutomatedRegistration(deployment) {
       return false;
     }
 
+    // Get the DLP proxy address (supports both old and new format)
+    const dlpProxyAddress = deployment.proxyAddress || 
+                           (deployment.contracts && deployment.contracts.proxyAddress) ||
+                           deployment.dlpAddress;
+                           
+    if (!dlpProxyAddress) {
+      console.error(chalk.red('❌ DLP proxy address not found in deployment.json'));
+      console.error(chalk.yellow('Please ensure contracts are deployed first.'));
+      return false;
+    }
+    
     // Prepare registration parameters
     const registrationParams = {
-      dlpAddress: deployment.dlpAddress,
+      dlpAddress: dlpProxyAddress,
       ownerAddress: deployment.address,
       treasuryAddress: deployment.address,
       name: deployment.dlpName,
@@ -240,7 +251,7 @@ async function performAutomatedRegistration(deployment) {
 
       // Get the dlpId
       console.log(chalk.blue('🔍 Retrieving dlpId...'));
-      const dlpId = await getDlpId(deployment.dlpAddress);
+      const dlpId = await getDlpId(dlpProxyAddress);
 
       if (dlpId > 0) {
         console.log(chalk.green(`✅ Registration successful! dlpId: ${dlpId}`));
@@ -262,15 +273,82 @@ async function performAutomatedRegistration(deployment) {
   } catch (error) {
     console.error(chalk.red('Registration failed:'), error.message);
 
-    if (error.message.includes('insufficient funds')) {
-      console.error(chalk.yellow('💡 Insufficient funds for transaction'));
-      console.error(chalk.yellow('Please ensure you have at least 1.1 VANA for registration + gas'));
-    } else if (error.message.includes('execution reverted')) {
-      console.error(chalk.yellow('💡 Transaction reverted - possible causes:'));
-      console.error(chalk.yellow('  - DLP already registered'));
-      console.error(chalk.yellow('  - Invalid DLP address'));
-      console.error(chalk.yellow('  - Network congestion'));
+    // Comprehensive error analysis
+    const errorLower = error.message.toLowerCase();
+    let recoverySteps = [];
+    let canRetry = false;
+    
+    if (errorLower.includes('insufficient funds') || errorLower.includes('insufficient_funds')) {
+      console.error(chalk.yellow('\n💡 Insufficient funds detected'));
+      console.error(chalk.yellow('Registration requires 1 VANA + gas fees (~1.1 VANA total)'));
+      recoverySteps = [
+        'Check balance: https://moksha.vanascan.io/address/' + deployment.address,
+        'Get testnet VANA: https://faucet.vana.org',
+        'Wait 1-2 minutes for funds to arrive',
+        'Retry registration: npm run register:datadao'
+      ];
+    } else if (errorLower.includes('user rejected') || errorLower.includes('user denied')) {
+      console.error(chalk.yellow('\n💡 Transaction cancelled by user'));
+      canRetry = true;
+      recoverySteps = [
+        'No action needed - you cancelled the transaction',
+        'Retry when ready: npm run register:datadao'
+      ];
+    } else if (errorLower.includes('already registered') || errorLower.includes('dlp exists')) {
+      console.error(chalk.yellow('\n💡 DataDAO may already be registered'));
+      recoverySteps = [
+        'Check registration on Vanascan: https://moksha.vanascan.io/address/' + dlpProxyAddress,
+        'If registered, run: npm run status to update local state',
+        'Otherwise, contact support with your DLP address'
+      ];
+    } else if (errorLower.includes('reverted') || errorLower.includes('execution failed')) {
+      console.error(chalk.yellow('\n💡 Transaction was reverted by the network'));
+      recoverySteps = [
+        'Verify contract deployment succeeded: npm run status',
+        'Check DLP proxy address is correct in deployment.json',
+        'Ensure you\'re using the proxy address, not implementation',
+        'Try manual registration via Vanascan'
+      ];
+    } else if (errorLower.includes('nonce') || errorLower.includes('already known')) {
+      console.error(chalk.yellow('\n💡 Transaction nonce conflict detected'));
+      canRetry = true;
+      recoverySteps = [
+        'Wait 30 seconds for pending transactions',
+        'Check recent transactions: https://moksha.vanascan.io/address/' + deployment.address,
+        'Retry registration: npm run register:datadao'
+      ];
+    } else if (errorLower.includes('timeout') || errorLower.includes('network')) {
+      console.error(chalk.yellow('\n💡 Network connectivity issue'));
+      canRetry = true;
+      recoverySteps = [
+        'Check your internet connection',
+        'Wait 2-3 minutes for network congestion',
+        'Retry registration: npm run register:datadao'
+      ];
+    } else {
+      console.error(chalk.yellow('\n💡 Unexpected error occurred'));
+      recoverySteps = [
+        'Check the full error message above',
+        'Verify deployment.json has correct addresses',
+        'Try manual registration via Vanascan',
+        'Contact support if issue persists'
+      ];
     }
+    
+    // Display recovery steps
+    console.error(chalk.cyan('\n📋 Recovery Steps:'));
+    recoverySteps.forEach((step, index) => {
+      console.error(chalk.white(`${index + 1}. ${step}`));
+    });
+    
+    if (canRetry) {
+      console.error(chalk.cyan('\n🔄 This error is likely temporary and can be retried.'));
+    }
+    
+    // Offer alternative registration method
+    console.error(chalk.cyan('\n🌐 Alternative: Manual Registration'));
+    console.error(chalk.white('You can also register manually via Vanascan:'));
+    console.error(chalk.blue('https://moksha.vanascan.io/address/{{DLP_REGISTRY_CONTRACT_ADDRESS}}?tab=write_proxy'));
 
     return false;
   }
@@ -280,13 +358,18 @@ async function performAutomatedRegistration(deployment) {
  * PRESERVED: Manual registration flow
  */
 async function performManualRegistration(deployment) {
+  // Get the DLP proxy address (supports both old and new format)
+  const dlpProxyAddress = deployment.proxyAddress || 
+                         (deployment.contracts && deployment.contracts.proxyAddress) ||
+                         deployment.dlpAddress;
+                         
   console.log();
   console.log(chalk.yellow('🔗 Manual Registration Steps:'));
   console.log('1. Go to {{MOKSHA_BROWSER_URL}}/address/{{DLP_REGISTRY_CONTRACT_ADDRESS}}?tab=write_proxy');
   console.log('2. Connect your wallet');
   console.log('3. Find the "registerDlp" method');
   console.log('4. Fill in the registration info:');
-  console.log(`   - dlpAddress: ${deployment.dlpAddress}`);
+  console.log(`   - dlpAddress: ${dlpProxyAddress}`);
   console.log(`   - ownerAddress: ${deployment.address}`);
   console.log(`   - treasuryAddress: ${deployment.address}`);
   console.log(`   - name: ${deployment.dlpName}`);
@@ -316,9 +399,14 @@ async function performManualRegistration(deployment) {
   console.log(chalk.blue('🔍 Detecting your dlpId...'));
 
   // Poll for dlpId (it might take a moment for the transaction to be processed)
+  // Get the DLP proxy address (supports both old and new format)
+  const dlpProxyAddress = deployment.proxyAddress || 
+                         (deployment.contracts && deployment.contracts.proxyAddress) ||
+                         deployment.dlpAddress;
+                         
   let dlpId = 0;
   for (let i = 0; i < 10; i++) {
-    dlpId = await getDlpId(deployment.dlpAddress);
+    dlpId = await getDlpId(dlpProxyAddress);
     if (dlpId > 0) break;
 
     console.log(`   Attempt ${i + 1}/10: Waiting for registration to be processed...`);
@@ -354,20 +442,25 @@ async function registerDataDAO() {
 
   const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
 
-  if (!deployment.dlpAddress) {
-    console.error(chalk.red('No DLP address found. Please deploy contracts first.'));
+  // Get the DLP proxy address (supports both old and new format)
+  const dlpProxyAddress = deployment.proxyAddress || 
+                         (deployment.contracts && deployment.contracts.proxyAddress) ||
+                         deployment.dlpAddress;
+                         
+  if (!dlpProxyAddress) {
+    console.error(chalk.red('No DLP proxy address found. Please deploy contracts first.'));
     process.exit(1);
   }
 
   console.log(chalk.blue('📋 Registration Information:'));
-  console.log(`  DLP Address: ${deployment.dlpAddress}`);
+  console.log(`  DLP Address: ${dlpProxyAddress}`);
   console.log(`  Owner Address: ${deployment.address}`);
   console.log(`  DLP Name: ${deployment.dlpName}`);
   console.log();
 
   // Check if already registered
   console.log(chalk.blue('🔍 Checking registration status...'));
-  const existingDlpId = await getDlpId(deployment.dlpAddress);
+  const existingDlpId = await getDlpId(dlpProxyAddress);
 
   if (existingDlpId > 0) {
     console.log(chalk.green(`✅ DataDAO already registered with dlpId: ${existingDlpId}`));

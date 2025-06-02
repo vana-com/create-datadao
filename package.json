@@ -48,12 +48,29 @@
     "coverageDirectory": "coverage",
     "collectCoverageFrom": [
       "lib/**/*.js",
-      "!lib/**/*.test.js"
+      "bin/**/*.js",
+      "src/**/*.js",
+      "!lib/**/*.test.js",
+      "!**/__tests__/**",
+      "!coverage/**",
+      "!node_modules/**"
     ],
     "testMatch": [
       "**/__tests__/**/*.test.js",
       "**/lib/**/*.test.js"
-    ]
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    },
+    "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"],
+    "clearMocks": true,
+    "resetMocks": true,
+    "restoreMocks": true
   },
   "repository": {
     "type": "git",
