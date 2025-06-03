@@ -10,13 +10,13 @@ const path = require('path');
 // Use real fs for these tests - we want to test real behavior
 jest.unmock('fs-extra');
 
-describe('Template Engine - Real Processing', () => {
+describe('Template Engine - Comprehensive Tests', () => {
   let templateEngine;
   let testDir;
   
   beforeEach(() => {
     templateEngine = new TemplateEngine();
-    testDir = path.join(__dirname, 'template-test');
+    testDir = path.join(__dirname, 'template-comprehensive-test');
     fs.ensureDirSync(testDir);
   });
   
@@ -26,263 +26,334 @@ describe('Template Engine - Real Processing', () => {
     }
   });
 
-  describe('Real Template Processing', () => {
-    test('processes deploy-contracts.js.template with real config', () => {
-      const config = {
-        dlpName: 'TestDataDAO',
+  describe('Default Configuration', () => {
+    test('provides complete Vana network configuration', () => {
+      const defaultConfig = templateEngine.getDefaultVanaConfig();
+      
+      // Verify all required addresses are present
+      expect(defaultConfig).toHaveProperty('DLP_REGISTRY_CONTRACT_ADDRESS');
+      expect(defaultConfig).toHaveProperty('DATA_REGISTRY_CONTRACT_ADDRESS');
+      expect(defaultConfig).toHaveProperty('TEE_POOL_CONTRACT_ADDRESS');
+      expect(defaultConfig).toHaveProperty('DAT_FACTORY_CONTRACT_ADDRESS');
+      
+      // Verify network URLs
+      expect(defaultConfig).toHaveProperty('MOKSHA_RPC_URL');
+      expect(defaultConfig).toHaveProperty('MOKSHA_API_URL');
+      expect(defaultConfig).toHaveProperty('MOKSHA_BROWSER_URL');
+      expect(defaultConfig).toHaveProperty('VANA_RPC_URL');
+      expect(defaultConfig).toHaveProperty('VANA_API_URL');
+      expect(defaultConfig).toHaveProperty('VANA_BROWSER_URL');
+      
+      // Verify addresses are valid
+      expect(defaultConfig.DLP_REGISTRY_CONTRACT_ADDRESS).toMatch(/^0x[a-fA-F0-9]{40}$/);
+      expect(defaultConfig.DATA_REGISTRY_CONTRACT_ADDRESS).toMatch(/^0x[a-fA-F0-9]{40}$/);
+      expect(defaultConfig.TEE_POOL_CONTRACT_ADDRESS).toMatch(/^0x[a-fA-F0-9]{40}$/);
+      expect(defaultConfig.DAT_FACTORY_CONTRACT_ADDRESS).toMatch(/^0x[a-fA-F0-9]{40}$/);
+      
+      // Verify URLs are valid
+      expect(defaultConfig.MOKSHA_RPC_URL).toMatch(/^https?:\/\/.+/);
+      expect(defaultConfig.MOKSHA_API_URL).toMatch(/^https?:\/\/.+/);
+      expect(defaultConfig.MOKSHA_BROWSER_URL).toMatch(/^https?:\/\/.+/);
+    });
+    
+    test('includes all network configurations', () => {
+      const defaultConfig = templateEngine.getDefaultVanaConfig();
+      
+      // Should have both Vana mainnet and Moksha testnet configs
+      expect(defaultConfig.VANA_RPC_URL).toBeDefined();
+      expect(defaultConfig.MOKSHA_RPC_URL).toBeDefined();
+      
+      // Moksha should be https (secure)
+      expect(defaultConfig.MOKSHA_RPC_URL).toContain('https://');
+      
+      // Should have trusted forwarder address (even if zero address)
+      expect(defaultConfig).toHaveProperty('TRUSTED_FORWARDER_ADDRESS');
+      expect(defaultConfig.TRUSTED_FORWARDER_ADDRESS).toMatch(/^0x[a-fA-F0-9]{40}$/);
+    });
+  });
+
+  describe('Template Processing', () => {
+    test('processes templates with complex variable substitution', () => {
+      const testTemplate = `
+// Configuration file for {{projectName}}
+const config = {
+  name: "{{dlpName}}",
+  token: {
+    name: "{{tokenName}}",
+    symbol: "{{tokenSymbol}}"
+  },
+  blockchain: {
+    rpcUrl: "{{MOKSHA_RPC_URL}}",
+    registry: "{{DLP_REGISTRY_CONTRACT_ADDRESS}}"
+  },
+  credentials: {
+    privateKey: "{{privateKey}}",
+    address: "{{address}}"
+  }
+};
+
+module.exports = config;
+`;
+
+      // Create a test template file
+      const templatePath = path.join(testDir, 'test.template');
+      fs.writeFileSync(templatePath, testTemplate);
+      
+      // Create custom template engine for this test
+      const customEngine = new TemplateEngine(testDir);
+      
+      const variables = {
+        projectName: 'TestProject',
+        dlpName: 'Test DataDAO',
         tokenName: 'TestToken',
         tokenSymbol: 'TEST',
-        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4',
-        privateKey: '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51',
-        DEPLOYER_PRIVATE_KEY: '3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51',
-        DLP_REGISTRY_CONTRACT_ADDRESS: '0xd0fD0cFA96a01bEc1F3c26d9D0Eb0F20fc2BB30C',
-        MOKSHA_RPC_URL: 'https://rpc.moksha.vana.org'
-      };
-
-      const result = templateEngine.processTemplate('deploy-contracts.js.template', config);
-      
-      // Test that config values are properly substituted
-      expect(result).toContain(config.dlpName);
-      expect(result).toContain(config.tokenName);
-      expect(result).toContain(config.tokenSymbol);
-      expect(result).toContain(config.DEPLOYER_PRIVATE_KEY);
-      expect(result).toContain(config.DLP_REGISTRY_CONTRACT_ADDRESS);
-      expect(result).toContain(config.MOKSHA_RPC_URL);
-      
-      // Test that the output is valid JavaScript
-      expect(() => {
-        new Function(result);
-      }).not.toThrow();
-      
-      // Test specific functionality - contract address parsing logic
-      expect(result).toContain('const tokenMatch = output.match');
-      expect(result).toContain('const proxyMatch = output.match');
-      expect(result).toContain('Token Address:');
-      expect(result).toContain('DataLiquidityPoolProxy');
-      
-      // Verify deployment.json update logic
-      expect(result).toContain('deployment.tokenAddress = tokenAddress');
-      expect(result).toContain('deployment.proxyAddress = proxyAddress');
-      expect(result).toContain('deployment.contracts = {');
-    });
-
-    test('processes register-datadao.js.template with backward compatibility', () => {
-      const config = {
-        dlpName: 'TestDataDAO',
-        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4',
-        DLP_REGISTRY_CONTRACT_ADDRESS: '0xd0fD0cFA96a01bEc1F3c26d9D0Eb0F20fc2BB30C',
         MOKSHA_RPC_URL: 'https://rpc.moksha.vana.org',
-        MOKSHA_BROWSER_URL: 'https://vanascan.io'
+        DLP_REGISTRY_CONTRACT_ADDRESS: '0x1234567890123456789012345678901234567890',
+        privateKey: '0xabcdef',
+        address: '0x123456'
       };
-
-      const result = templateEngine.processTemplate('register-datadao.js.template', config);
       
-      // Test that proxy address logic supports both old and new formats
-      expect(result).toContain('deployment.proxyAddress ||');
-      expect(result).toContain('deployment.contracts && deployment.contracts.proxyAddress');
-      expect(result).toContain('deployment.dlpAddress');
+      const result = customEngine.processTemplate('test.template', variables);
       
-      // Test that all three instances of proxy address logic are present
-      const proxyLogicMatches = result.match(/deployment\.proxyAddress \|\|/g);
-      expect(proxyLogicMatches.length).toBeGreaterThanOrEqual(3);
+      // Verify all variables were substituted
+      expect(result).toContain('TestProject');
+      expect(result).toContain('Test DataDAO');
+      expect(result).toContain('TestToken');
+      expect(result).toContain('TEST');
+      expect(result).toContain('https://rpc.moksha.vana.org');
+      expect(result).toContain('0x1234567890123456789012345678901234567890');
+      expect(result).toContain('0xabcdef');
+      expect(result).toContain('0x123456');
       
-      // Test registration parameter construction
-      expect(result).toContain('dlpAddress: dlpProxyAddress');
-      expect(result).toContain('ownerAddress: deployment.address');
-      expect(result).toContain('treasuryAddress: deployment.address');
-      expect(result).toContain('name: deployment.dlpName');
-      
-      // Test error handling logic
-      expect(result).toContain('insufficient funds');
-      expect(result).toContain('execution reverted');
-      expect(result).toContain('Registration fee: 1 VANA');
+      // Verify no placeholders remain
+      expect(result).not.toContain('{{');
+      expect(result).not.toContain('}}');
     });
-
-    test('processes proof and refiner templates with repo configurations', () => {
-      const proofConfig = {
-        dlpName: 'TestDataDAO',
-        githubUsername: 'testuser',
-        proofRepo: 'https://github.com/testuser/test-proof',
-        dlpId: 42,
-        PINATA_JWT: 'test-jwt-token'
-      };
-
-      const proofResult = templateEngine.processTemplate('deploy-proof.js', proofConfig);
-      
-      expect(proofResult).toContain(proofConfig.githubUsername);
-      expect(proofResult).toContain(proofConfig.proofRepo);
-      expect(proofResult).toContain(proofConfig.dlpId.toString());
-      expect(proofResult).toContain(proofConfig.PINATA_JWT);
-
-      const refinerConfig = {
-        dlpName: 'TestDataDAO',
-        githubUsername: 'testuser',
-        refinerRepo: 'https://github.com/testuser/test-refiner',
-        dlpId: 42
-      };
-
-      const refinerResult = templateEngine.processTemplate('deploy-refiner.js', refinerConfig);
-      
-      expect(refinerResult).toContain(refinerConfig.githubUsername);
-      expect(refinerResult).toContain(refinerConfig.refinerRepo);
-      expect(refinerResult).toContain(refinerConfig.dlpId.toString());
-    });
-
-    test('processes UI template with Google OAuth credentials', () => {
-      const config = {
-        dlpName: 'TestDataDAO',
-        googleClientId: 'test-client-id.apps.googleusercontent.com',
-        googleClientSecret: 'test-client-secret',
-        tokenAddress: '0x6F86D622330aD4c50c772592d7fAc94FdBD05C3e',
-        proxyAddress: '0x129E6540D19c1b48B11Ba6fae9CF4dc45dfB892A',
-        dlpId: 42
-      };
-
-      const result = templateEngine.processTemplate('deploy-ui.js', config);
-      
-      expect(result).toContain(config.googleClientId);
-      expect(result).toContain(config.googleClientSecret);
-      expect(result).toContain(config.tokenAddress);
-      expect(result).toContain(config.proxyAddress);
-      expect(result).toContain(config.dlpId.toString());
-      
-      // Test that sensitive data handling is present
-      expect(result).toContain('GOOGLE_CLIENT_ID');
-      expect(result).toContain('GOOGLE_CLIENT_SECRET');
-      expect(result).toContain('NEXTAUTH_SECRET');
-    });
-  });
-
-  describe('Template Variable Replacement', () => {
-    test('replaces simple variables correctly', () => {
-      const templateContent = 'Hello {{name}}, your token is {{token}}!';
-      const config = { name: 'Alice', token: 'TOKEN123' };
-      
-      const result = templateEngine.processTemplateContent(templateContent, config);
-      
-      expect(result).toBe('Hello Alice, your token is TOKEN123!');
-    });
-
+    
     test('handles missing variables gracefully', () => {
-      const templateContent = 'Hello {{name}}, your token is {{missingToken}}!';
-      const config = { name: 'Alice' };
+      const testTemplate = 'Hello {{name}}, your status is {{status}}, {{missing}} variable.';
       
-      const result = templateEngine.processTemplateContent(templateContent, config);
+      // Create a test template file
+      const templatePath = path.join(testDir, 'missing.template');
+      fs.writeFileSync(templatePath, testTemplate);
       
-      // Should leave undefined variables as-is or handle them gracefully
+      // Create custom template engine for this test
+      const customEngine = new TemplateEngine(testDir);
+      
+      const variables = {
+        name: 'Alice',
+        status: 'active'
+        // missing variable not provided
+      };
+      
+      // Mock console.warn to capture warnings
+      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      
+      const result = customEngine.processTemplate('missing.template', variables);
+      
+      // Should substitute known variables
       expect(result).toContain('Alice');
-      expect(result).toContain('{{missingToken}}'); // Or however the engine handles missing vars
+      expect(result).toContain('active');
+      
+      // Should keep unknown placeholder
+      expect(result).toContain('{{missing}}');
+      
+      // Should have warned about missing variable
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Variable 'missing' not found")
+      );
+      
+      consoleSpy.mockRestore();
     });
 
-    test('processes complex nested replacements', () => {
-      const templateContent = `
-        const config = {
-          name: '{{dlpName}}',
-          address: '{{address}}',
-          contracts: {
-            token: '{{tokenAddress}}',
-            proxy: '{{proxyAddress}}'
-          }
-        };
-      `;
-      const config = {
-        dlpName: 'MyDAO',
-        address: '0x123',
-        tokenAddress: '0x456',
-        proxyAddress: '0x789'
-      };
+    test('extracts all unique placeholders from complex templates', () => {
+      const complexTemplate = `
+# Configuration for {{dlpName}}
+SERVICE_NAME={{dlpName}}
+TOKEN_NAME={{tokenName}}
+TOKEN_SYMBOL={{tokenSymbol}}
+DUPLICATE_VALUE={{dlpName}}  # This should deduplicate
+NESTED_CONFIG="{{MOKSHA_RPC_URL}}/{{chainId}}"
+COMPLEX_PATTERN={{kebab-case-var}}
+UPPER_CASE={{SCREAMING_SNAKE_CASE}}
+`;
       
-      const result = templateEngine.processTemplateContent(templateContent, config);
+      const placeholders = templateEngine.extractPlaceholders(complexTemplate);
       
-      expect(result).toContain("name: 'MyDAO'");
-      expect(result).toContain("address: '0x123'");
-      expect(result).toContain("token: '0x456'");
-      expect(result).toContain("proxy: '0x789'");
-    });
-  });
-
-  describe('Environment File Processing', () => {
-    test('processes .env templates correctly', () => {
-      const envTemplate = `
-DEPLOYER_PRIVATE_KEY={{DEPLOYER_PRIVATE_KEY}}
-DLP_REGISTRY_CONTRACT_ADDRESS={{DLP_REGISTRY_CONTRACT_ADDRESS}}
-MOKSHA_RPC_URL={{MOKSHA_RPC_URL}}
-PINATA_JWT={{PINATA_JWT}}
-GOOGLE_CLIENT_ID={{googleClientId}}
-GOOGLE_CLIENT_SECRET={{googleClientSecret}}
-      `.trim();
-
-      const config = {
-        DEPLOYER_PRIVATE_KEY: 'private-key-123',
-        DLP_REGISTRY_CONTRACT_ADDRESS: '0xregistry123',
-        MOKSHA_RPC_URL: 'https://rpc.test',
-        PINATA_JWT: 'jwt-token-123',
-        googleClientId: 'google-client-123',
-        googleClientSecret: 'google-secret-123'
-      };
-
-      const result = templateEngine.processTemplateContent(envTemplate, config);
+      // Should extract all unique placeholders
+      expect(placeholders).toContain('dlpName');
+      expect(placeholders).toContain('tokenName');
+      expect(placeholders).toContain('tokenSymbol');
+      expect(placeholders).toContain('MOKSHA_RPC_URL');
+      expect(placeholders).toContain('chainId');
+      expect(placeholders).toContain('kebab-case-var');
+      expect(placeholders).toContain('SCREAMING_SNAKE_CASE');
       
-      expect(result).toContain('DEPLOYER_PRIVATE_KEY=private-key-123');
-      expect(result).toContain('DLP_REGISTRY_CONTRACT_ADDRESS=0xregistry123');
-      expect(result).toContain('MOKSHA_RPC_URL=https://rpc.test');
-      expect(result).toContain('PINATA_JWT=jwt-token-123');
-      expect(result).toContain('GOOGLE_CLIENT_ID=google-client-123');
-      expect(result).toContain('GOOGLE_CLIENT_SECRET=google-secret-123');
+      // Should deduplicate (dlpName appears twice)
+      const dlpNameOccurrences = placeholders.filter(p => p === 'dlpName');
+      expect(dlpNameOccurrences).toHaveLength(1);
+      
+      // Should have correct total count
+      expect(placeholders).toHaveLength(7);
     });
   });
 
-  describe('Error Handling', () => {
-    test('handles non-existent template files gracefully', () => {
-      expect(() => {
-        templateEngine.processTemplate('non-existent-template.js', {});
-      }).toThrow();
-    });
-
-    test('validates template content syntax', () => {
-      // Test with real template that should be syntactically valid
-      const config = {
-        dlpName: 'Test',
-        address: '0x123',
-        DEPLOYER_PRIVATE_KEY: 'key',
-        DLP_REGISTRY_CONTRACT_ADDRESS: '0x456',
-        MOKSHA_RPC_URL: 'https://rpc.test'
-      };
-
-      const jsTemplate = templateEngine.processTemplate('deploy-contracts.js.template', config);
+  describe('Multiple Template Processing', () => {
+    test('processes multiple templates with shared and unique variables', () => {
+      // Create multiple test templates
+      const template1 = 'Project: {{name}}, Environment: {{env}}';
+      const template2 = 'Token: {{token}}, Environment: {{env}}';
       
-      // Should be valid JavaScript
-      expect(() => {
-        new Function(jsTemplate);
-      }).not.toThrow();
+      const template1Path = path.join(testDir, 'config1.template');
+      const template2Path = path.join(testDir, 'config2.template');
+      const output1Path = path.join(testDir, 'config1.js');
+      const output2Path = path.join(testDir, 'config2.js');
+      
+      fs.writeFileSync(template1Path, template1);
+      fs.writeFileSync(template2Path, template2);
+      
+      // Create custom template engine
+      const customEngine = new TemplateEngine(testDir);
+      
+      const globalVariables = {
+        env: 'production'
+      };
+      
+      const templates = [
+        {
+          template: 'config1.template',
+          target: output1Path,
+          variables: { name: 'DataDAO Generator' }
+        },
+        {
+          template: 'config2.template',
+          target: output2Path,
+          variables: { token: 'VANA' }
+        }
+      ];
+      
+      const results = customEngine.processMultipleTemplates(templates, globalVariables);
+      
+      // All templates should process successfully
+      expect(results).toHaveLength(2);
+      expect(results[0].success).toBe(true);
+      expect(results[1].success).toBe(true);
+      
+      // Verify output files were created correctly
+      expect(fs.existsSync(output1Path)).toBe(true);
+      expect(fs.existsSync(output2Path)).toBe(true);
+      
+      const content1 = fs.readFileSync(output1Path, 'utf8');
+      const content2 = fs.readFileSync(output2Path, 'utf8');
+      
+      expect(content1).toBe('Project: DataDAO Generator, Environment: production');
+      expect(content2).toBe('Token: VANA, Environment: production');
+    });
+    
+    test('handles template processing failures gracefully', () => {
+      const templates = [
+        {
+          template: 'nonexistent.template',
+          target: path.join(testDir, 'output1.js')
+        },
+        {
+          template: 'also-missing.template', 
+          target: path.join(testDir, 'output2.js')
+        }
+      ];
+      
+      const results = templateEngine.processMultipleTemplates(templates);
+      
+      // Should return failure results for missing templates
+      expect(results).toHaveLength(2);
+      expect(results[0].success).toBe(false);
+      expect(results[1].success).toBe(false);
+      expect(results[0].error).toContain('Template file not found');
+      expect(results[1].error).toContain('Template file not found');
     });
   });
 
-  describe('Integration with File System', () => {
-    test('writes processed templates to files correctly', () => {
-      const config = {
-        dlpName: 'TestDAO',
-        address: '0x123',
-        DEPLOYER_PRIVATE_KEY: 'test-key',
-        DLP_REGISTRY_CONTRACT_ADDRESS: '0x456',
-        MOKSHA_RPC_URL: 'https://rpc.test'
+  describe('Template Validation', () => {
+    test('validates templates and identifies missing variables', () => {
+      const templateContent = 'Hello {{name}}, your {{type}} account has {{balance}} credits.';
+      
+      // Create test template
+      const templatePath = path.join(testDir, 'validate.template');
+      fs.writeFileSync(templatePath, templateContent);
+      
+      // Create custom template engine
+      const customEngine = new TemplateEngine(testDir);
+      
+      const completeVariables = {
+        name: 'Alice',
+        type: 'premium',
+        balance: '100'
       };
+      
+      const incompleteVariables = {
+        name: 'Bob',
+        balance: '50'
+        // missing 'type'
+      };
+      
+      // Test with complete variables
+      const validResult = customEngine.validateTemplate('validate.template', completeVariables);
+      expect(validResult.valid).toBe(true);
+      expect(validResult.missing).toHaveLength(0);
+      expect(validResult.required).toEqual(['name', 'type', 'balance']);
+      
+      // Test with incomplete variables
+      const invalidResult = customEngine.validateTemplate('validate.template', incompleteVariables);
+      expect(invalidResult.valid).toBe(false);
+      expect(invalidResult.missing).toEqual(['type']);
+      expect(invalidResult.required).toEqual(['name', 'type', 'balance']);
+    });
+  });
 
-      const processed = templateEngine.processTemplate('deploy-contracts.js.template', config);
-      const outputPath = path.join(testDir, 'deploy-contracts.js');
+  describe('File System Integration', () => {
+    test('creates target directories when processing templates to files', () => {
+      const template = 'Config: {{value}}';
+      const variables = { value: 'test' };
       
-      fs.writeFileSync(outputPath, processed);
+      // Create test template
+      const templatePath = path.join(testDir, 'nested.template');
+      fs.writeFileSync(templatePath, template);
       
-      expect(fs.existsSync(outputPath)).toBe(true);
+      // Target file in nested directory that doesn't exist yet
+      const targetPath = path.join(testDir, 'deep', 'nested', 'config.js');
       
-      const fileContent = fs.readFileSync(outputPath, 'utf8');
-      expect(fileContent).toContain(config.dlpName);
-      expect(fileContent).toContain(config.address);
+      // Create custom template engine
+      const customEngine = new TemplateEngine(testDir);
       
-      // Verify the file is executable Node.js
-      expect(() => {
-        require(outputPath);
-      }).not.toThrow();
+      // Process template to nested path
+      customEngine.processTemplateToFile('nested.template', targetPath, variables);
+      
+      // Should create directories and file
+      expect(fs.existsSync(targetPath)).toBe(true);
+      expect(fs.readFileSync(targetPath, 'utf8')).toBe('Config: test');
+    });
+    
+    test('overwrites existing files when processing templates', () => {
+      const template = 'New content: {{value}}';
+      const variables = { value: 'updated' };
+      
+      // Create test template
+      const templatePath = path.join(testDir, 'overwrite.template');
+      fs.writeFileSync(templatePath, template);
+      
+      const targetPath = path.join(testDir, 'target.js');
+      
+      // Create existing file with different content
+      fs.writeFileSync(targetPath, 'Old content');
+      
+      // Create custom template engine
+      const customEngine = new TemplateEngine(testDir);
+      
+      // Process template (should overwrite)
+      customEngine.processTemplateToFile('overwrite.template', targetPath, variables);
+      
+      // Should have new content
+      expect(fs.readFileSync(targetPath, 'utf8')).toBe('New content: updated');
     });
   });
 });

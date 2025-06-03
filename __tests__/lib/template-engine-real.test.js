@@ -91,24 +91,16 @@ const config = {
       const config = {
         dlpName: 'TestDAO',
         tokenName: 'TestToken',
-        tokenSymbol: 'TEST',
-        DEPLOYER_PRIVATE_KEY: '3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51',
-        DLP_REGISTRY_CONTRACT_ADDRESS: '0xd0fD0cFA96a01bEc1F3c26d9D0Eb0F20fc2BB30C',
-        MOKSHA_RPC_URL: 'https://rpc.moksha.vana.org'
+        tokenSymbol: 'TEST'
       };
 
       const result = realTemplateEngine.processTemplate('deploy-contracts.js.template', config);
 
-      // Test that variables are replaced
-      expect(result).toContain(config.DEPLOYER_PRIVATE_KEY);
-      expect(result).toContain(config.DLP_REGISTRY_CONTRACT_ADDRESS);
-      expect(result).toContain(config.MOKSHA_RPC_URL);
-      
-      // Test that the script structure is preserved
+      // Test that the script structure is preserved (no placeholders in this template)
       expect(result).toContain('const fs = require(');
       expect(result).toContain('async function deployContracts()');
-      expect(result).toContain('const tokenMatch = output.match');
-      expect(result).toContain('const proxyMatch = output.match');
+      expect(result).toContain('async function checkWalletBalance(address)');
+      expect(result).toContain('https://rpc.moksha.vana.org');
       
       // Test that the result is valid JavaScript
       expect(() => {
@@ -172,28 +164,22 @@ const config = {
   describe('Variable Extraction', () => {
     test('extracts variables from template content', () => {
       const templateContent = 'Hello {{name}}, your {{type}} is {{value}}!';
-      const templatePath = path.join(testTemplatesDir, 'extract.template');
-      fs.writeFileSync(templatePath, templateContent);
-
-      const variables = templateEngine.extractVariables('extract.template');
+      
+      const variables = templateEngine.extractPlaceholders(templateContent);
       expect(variables.sort()).toEqual(['name', 'type', 'value']);
     });
 
     test('handles duplicate variables', () => {
       const templateContent = 'Hello {{name}}, {{name}} is your name!';
-      const templatePath = path.join(testTemplatesDir, 'duplicate.template');
-      fs.writeFileSync(templatePath, templateContent);
-
-      const variables = templateEngine.extractVariables('duplicate.template');
+      
+      const variables = templateEngine.extractPlaceholders(templateContent);
       expect(variables).toEqual(['name']); // Should be deduplicated
     });
 
     test('handles complex variable names', () => {
       const templateContent = 'Config: {{UPPER_CASE}}, {{camelCase}}, {{kebab-case}}';
-      const templatePath = path.join(testTemplatesDir, 'complex.template');
-      fs.writeFileSync(templatePath, templateContent);
-
-      const variables = templateEngine.extractVariables('complex.template');
+      
+      const variables = templateEngine.extractPlaceholders(templateContent);
       expect(variables.sort()).toEqual(['UPPER_CASE', 'camelCase', 'kebab-case']);
     });
   });

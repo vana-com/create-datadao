@@ -474,6 +474,55 @@ module.exports = { main };`;
       expect(statusOutput).toContain('DLP ID: 42');
     });
 
+    test('status command detects incomplete setup correctly', async () => {
+      // Create a new project with incomplete setup
+      const incompleteProjectPath = path.join(testDir, 'incomplete-dao');
+      await fs.copy(projectPath, incompleteProjectPath);
+      
+      // Modify deployment state to be incomplete
+      const deploymentPath = path.join(incompleteProjectPath, 'deployment.json');
+      const deployment = JSON.parse(await fs.readFile(deploymentPath, 'utf8'));
+      deployment.state = {
+        contractsDeployed: false,
+        dataDAORegistered: false,
+        proofConfigured: false,
+        refinerConfigured: false,
+        uiConfigured: false
+      };
+      await fs.writeFile(deploymentPath, JSON.stringify(deployment, null, 2));
+      
+      // Update the mock status script to show incomplete state
+      const statusScriptPath = path.join(incompleteProjectPath, 'scripts', 'status.js');
+      const statusScript = `
+const fs = require('fs-extra');
+const path = require('path');
+
+const deploymentPath = path.join(process.cwd(), 'deployment.json');
+const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+
+console.log('🔄 DataDAO Project Status');
+console.log('   Project: ' + deployment.dlpName);
+console.log();
+console.log('📋 Deployment Progress:');
+console.log('  ⏸ Smart Contracts - Pending');
+console.log('  ⏸ DataDAO Registration - Pending'); 
+console.log('  ⏸ Proof of Contribution - Pending');
+console.log('  ⏸ Data Refiner - Pending');
+console.log('  ⏸ User Interface - Pending');
+console.log();
+console.log('🚀 Next Steps:');
+console.log('  1. Deploy smart contracts: npm run deploy:contracts');
+      `;
+      await fs.writeFile(statusScriptPath, statusScript);
+      
+      const statusOutput = await runCLICommand(['status'], incompleteProjectPath);
+      
+      // Verify it shows incomplete state with the actual output format
+      expect(statusOutput).toContain('⏸️ Smart Contracts');
+      expect(statusOutput).toContain('⏸️ DataDAO Registration');
+      expect(statusOutput).toContain('⏸️ Proof of Contribution');
+    });
+
     test('resume command identifies next step correctly', async () => {
       const resumeOutput = await runCLICommand(['resume'], projectPath);
 

@@ -11,12 +11,11 @@ jest.mock('inquirer', () => ({
 }));
 
 jest.mock('../../lib/wallet', () => ({
-  generateWallet: jest.fn(),
-  deriveFromPrivateKey: jest.fn()
+  deriveWalletFromPrivateKey: jest.fn()
 }));
 
 const inquirer = require('inquirer');
-const { generateWallet, deriveFromPrivateKey } = require('../../lib/wallet');
+const { deriveWalletFromPrivateKey } = require('../../lib/wallet');
 
 describe('Config Setup - Real Tests', () => {
   beforeEach(() => {
@@ -33,14 +32,16 @@ describe('Config Setup - Real Tests', () => {
 
   describe('setupConfig function', () => {
     test('creates complete configuration from user prompts', async () => {
-      // Mock wallet generation
+      const testPrivateKey = '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51';
       const mockWallet = {
-        privateKey: '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51',
-        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4'
+        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4',
+        publicKey: '0x0279e3b8a4e7e63be1d5a1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5'
       };
-      generateWallet.mockReturnValue(mockWallet);
+      
+      // Mock wallet derivation
+      deriveWalletFromPrivateKey.mockReturnValue(mockWallet);
 
-      // Mock user inputs
+      // Mock user inputs - matching the actual function flow
       inquirer.prompt
         .mockResolvedValueOnce({
           dlpName: 'My Test DataDAO',
@@ -48,15 +49,16 @@ describe('Config Setup - Real Tests', () => {
           tokenSymbol: 'MTT'
         })
         .mockResolvedValueOnce({
-          useExistingWallet: false
+          privateKey: testPrivateKey
         })
         .mockResolvedValueOnce({
           pinataApiKey: 'test-pinata-key-123',
-          pinataApiSecret: 'test-pinata-secret-456'
-        })
-        .mockResolvedValueOnce({
+          pinataApiSecret: 'test-pinata-secret-456',
           googleClientId: 'test-client-id.apps.googleusercontent.com',
           googleClientSecret: 'test-google-secret-789'
+        })
+        .mockResolvedValueOnce({
+          githubUsername: 'test-user'
         });
 
       const result = await setupConfig();
@@ -66,29 +68,31 @@ describe('Config Setup - Real Tests', () => {
         dlpName: 'My Test DataDAO',
         tokenName: 'MyTestToken',
         tokenSymbol: 'MTT',
-        privateKey: mockWallet.privateKey,
+        privateKey: testPrivateKey,
         address: mockWallet.address,
+        publicKey: mockWallet.publicKey,
         pinataApiKey: 'test-pinata-key-123',
         pinataApiSecret: 'test-pinata-secret-456',
         googleClientId: 'test-client-id.apps.googleusercontent.com',
         googleClientSecret: 'test-google-secret-789',
+        githubUsername: 'test-user',
         // Default network configuration
         network: 'moksha',
         rpcUrl: 'https://rpc.moksha.vana.org',
         chainId: 14800
       });
 
-      // Verify that generateWallet was called
-      expect(generateWallet).toHaveBeenCalled();
+      // Verify that deriveWalletFromPrivateKey was called
+      expect(deriveWalletFromPrivateKey).toHaveBeenCalledWith(testPrivateKey);
     });
 
-    test('uses existing wallet when user provides private key', async () => {
+    test('uses provided private key correctly', async () => {
       const existingPrivateKey = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
       const mockWallet = {
-        privateKey: existingPrivateKey,
-        address: '0x9876543210fedcba9876543210fedcba98765432'
+        address: '0x9876543210fedcba9876543210fedcba98765432',
+        publicKey: '0x0279e3b8a4e7e63be1d5a1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5'
       };
-      deriveFromPrivateKey.mockReturnValue(mockWallet);
+      deriveWalletFromPrivateKey.mockReturnValue(mockWallet);
 
       inquirer.prompt
         .mockResolvedValueOnce({
@@ -97,66 +101,67 @@ describe('Config Setup - Real Tests', () => {
           tokenSymbol: 'EXT'
         })
         .mockResolvedValueOnce({
-          useExistingWallet: true,
           privateKey: existingPrivateKey
         })
         .mockResolvedValueOnce({
           pinataApiKey: 'existing-pinata-key',
-          pinataApiSecret: 'existing-pinata-secret'
-        })
-        .mockResolvedValueOnce({
+          pinataApiSecret: 'existing-pinata-secret',
           googleClientId: 'existing-client-id.apps.googleusercontent.com',
           googleClientSecret: 'existing-google-secret'
+        })
+        .mockResolvedValueOnce({
+          githubUsername: 'existing-user'
         });
 
       const result = await setupConfig();
 
       expect(result.privateKey).toBe(existingPrivateKey);
       expect(result.address).toBe(mockWallet.address);
-      expect(deriveFromPrivateKey).toHaveBeenCalledWith(existingPrivateKey);
-      expect(generateWallet).not.toHaveBeenCalled();
+      expect(result.publicKey).toBe(mockWallet.publicKey);
+      expect(deriveWalletFromPrivateKey).toHaveBeenCalledWith(existingPrivateKey);
     });
 
-    test('merges provided config with user input', async () => {
-      const providedConfig = {
-        dlpName: 'Predefined DAO',
-        pinataApiKey: 'predefined-pinata-key'
-      };
-
+    test('works with basic configuration flow', async () => {
+      const testPrivateKey = '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51';
       const mockWallet = {
-        privateKey: '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51',
-        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4'
+        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4',
+        publicKey: '0x0279e3b8a4e7e63be1d5a1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5'
       };
-      generateWallet.mockReturnValue(mockWallet);
+      deriveWalletFromPrivateKey.mockReturnValue(mockWallet);
 
       inquirer.prompt
         .mockResolvedValueOnce({
-          tokenName: 'PredefinedToken',
-          tokenSymbol: 'PDT'
+          dlpName: 'Basic DAO',
+          tokenName: 'BasicToken',
+          tokenSymbol: 'BSC'
         })
         .mockResolvedValueOnce({
-          useExistingWallet: false
+          privateKey: testPrivateKey
         })
         .mockResolvedValueOnce({
-          pinataApiSecret: 'new-pinata-secret'
+          pinataApiKey: 'basic-pinata-key',
+          pinataApiSecret: 'basic-pinata-secret',
+          googleClientId: 'basic-client-id.apps.googleusercontent.com',
+          googleClientSecret: 'basic-google-secret'
         })
         .mockResolvedValueOnce({
-          googleClientId: 'new-client-id.apps.googleusercontent.com',
-          googleClientSecret: 'new-google-secret'
+          githubUsername: 'basic-user'
         });
 
-      const result = await setupConfig(providedConfig);
+      const result = await setupConfig();
 
       expect(result).toEqual({
-        dlpName: 'Predefined DAO', // From provided config
-        tokenName: 'PredefinedToken', // From user input
-        tokenSymbol: 'PDT', // From user input
-        privateKey: mockWallet.privateKey,
+        dlpName: 'Basic DAO',
+        tokenName: 'BasicToken',
+        tokenSymbol: 'BSC',
+        privateKey: testPrivateKey,
         address: mockWallet.address,
-        pinataApiKey: 'predefined-pinata-key', // From provided config
-        pinataApiSecret: 'new-pinata-secret', // From user input
-        googleClientId: 'new-client-id.apps.googleusercontent.com',
-        googleClientSecret: 'new-google-secret',
+        publicKey: mockWallet.publicKey,
+        pinataApiKey: 'basic-pinata-key',
+        pinataApiSecret: 'basic-pinata-secret',
+        googleClientId: 'basic-client-id.apps.googleusercontent.com',
+        googleClientSecret: 'basic-google-secret',
+        githubUsername: 'basic-user',
         network: 'moksha',
         rpcUrl: 'https://rpc.moksha.vana.org',
         chainId: 14800
@@ -164,40 +169,28 @@ describe('Config Setup - Real Tests', () => {
     });
 
     test('validates user input during prompting', async () => {
+      const testPrivateKey = '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51';
       const mockWallet = {
-        privateKey: '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51',
-        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4'
+        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4',
+        publicKey: '0x0279e3b8a4e7e63be1d5a1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5'
       };
-      generateWallet.mockReturnValue(mockWallet);
+      deriveWalletFromPrivateKey.mockReturnValue(mockWallet);
 
       // Test that validation functions are called during prompting
       inquirer.prompt.mockImplementation((questions) => {
         // Find questions with validation and test them
         for (const question of questions) {
           if (question.validate) {
-            // Test token symbol validation
-            if (question.name === 'tokenSymbol') {
-              expect(question.validate('test')).toBe('Token symbol must be 2-6 uppercase characters');
-              expect(question.validate('TEST')).toBe(true);
-              expect(question.validate('TOOLONG')).toBe('Token symbol must be 2-6 uppercase characters');
-            }
-            
             // Test private key validation
             if (question.name === 'privateKey') {
-              expect(question.validate('invalid')).toBe('Private key must be 64 hex characters (with or without 0x prefix)');
+              expect(question.validate('invalid')).toBe('Invalid private key format. Expected 64 hex characters (with or without 0x prefix)');
               expect(question.validate('0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51')).toBe(true);
               expect(question.validate('3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51')).toBe(true);
-            }
-
-            // Test Google Client ID validation
-            if (question.name === 'googleClientId') {
-              expect(question.validate('invalid-id')).toBe('Google Client ID must end with .apps.googleusercontent.com');
-              expect(question.validate('test-id.apps.googleusercontent.com')).toBe(true);
             }
           }
         }
 
-        // Return mock responses
+        // Return mock responses based on what's being asked
         if (questions.some(q => q.name === 'dlpName')) {
           return Promise.resolve({
             dlpName: 'Test DAO',
@@ -205,19 +198,22 @@ describe('Config Setup - Real Tests', () => {
             tokenSymbol: 'TEST'
           });
         }
-        if (questions.some(q => q.name === 'useExistingWallet')) {
-          return Promise.resolve({ useExistingWallet: false });
+        if (questions.some(q => q.name === 'privateKey')) {
+          return Promise.resolve({
+            privateKey: testPrivateKey
+          });
         }
         if (questions.some(q => q.name === 'pinataApiKey')) {
           return Promise.resolve({
             pinataApiKey: 'test-key',
-            pinataApiSecret: 'test-secret'
-          });
-        }
-        if (questions.some(q => q.name === 'googleClientId')) {
-          return Promise.resolve({
+            pinataApiSecret: 'test-secret',
             googleClientId: 'test-id.apps.googleusercontent.com',
             googleClientSecret: 'test-secret'
+          });
+        }
+        if (questions.some(q => q.name === 'githubUsername')) {
+          return Promise.resolve({
+            githubUsername: 'test-user'
           });
         }
         return Promise.resolve({});
@@ -232,9 +228,9 @@ describe('Config Setup - Real Tests', () => {
       });
     });
 
-    test('handles wallet generation errors gracefully', async () => {
-      generateWallet.mockImplementation(() => {
-        throw new Error('Wallet generation failed');
+    test('handles wallet derivation errors gracefully', async () => {
+      deriveWalletFromPrivateKey.mockImplementation(() => {
+        throw new Error('Failed to derive wallet from private key: Invalid private key');
       });
 
       inquirer.prompt
@@ -244,18 +240,13 @@ describe('Config Setup - Real Tests', () => {
           tokenSymbol: 'ERR'
         })
         .mockResolvedValueOnce({
-          useExistingWallet: false
+          privateKey: 'invalid-key'
         });
 
-      await expect(setupConfig()).rejects.toThrow('Wallet generation failed');
+      await expect(setupConfig()).rejects.toThrow('Failed to derive wallet from private key: Invalid private key');
     });
 
-    test('handles private key derivation errors', async () => {
-      const invalidPrivateKey = '0xinvalid';
-      deriveFromPrivateKey.mockImplementation(() => {
-        throw new Error('Invalid private key');
-      });
-
+    test('handles normalization errors', async () => {
       inquirer.prompt
         .mockResolvedValueOnce({
           dlpName: 'Error Test DAO',
@@ -263,19 +254,19 @@ describe('Config Setup - Real Tests', () => {
           tokenSymbol: 'ERR'
         })
         .mockResolvedValueOnce({
-          useExistingWallet: true,
-          privateKey: invalidPrivateKey
+          privateKey: null  // This will trigger the normalizePrivateKey error
         });
 
-      await expect(setupConfig()).rejects.toThrow('Invalid private key');
+      await expect(setupConfig()).rejects.toThrow('Private key must be a non-empty string');
     });
 
     test('prompts for all required fields in correct order', async () => {
+      const testPrivateKey = '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51';
       const mockWallet = {
-        privateKey: '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51',
-        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4'
+        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4',
+        publicKey: '0x0279e3b8a4e7e63be1d5a1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5'
       };
-      generateWallet.mockReturnValue(mockWallet);
+      deriveWalletFromPrivateKey.mockReturnValue(mockWallet);
 
       inquirer.prompt
         .mockResolvedValueOnce({
@@ -284,15 +275,16 @@ describe('Config Setup - Real Tests', () => {
           tokenSymbol: 'CMP'
         })
         .mockResolvedValueOnce({
-          useExistingWallet: false
+          privateKey: testPrivateKey
         })
         .mockResolvedValueOnce({
           pinataApiKey: 'complete-pinata-key',
-          pinataApiSecret: 'complete-pinata-secret'
-        })
-        .mockResolvedValueOnce({
+          pinataApiSecret: 'complete-pinata-secret',
           googleClientId: 'complete-client-id.apps.googleusercontent.com',
           googleClientSecret: 'complete-google-secret'
+        })
+        .mockResolvedValueOnce({
+          githubUsername: 'complete-user'
         });
 
       await setupConfig();
@@ -308,22 +300,25 @@ describe('Config Setup - Real Tests', () => {
 
       // Check that wallet setup is prompted second
       const secondCall = inquirer.prompt.mock.calls[1][0];
-      expect(secondCall.some(q => q.name === 'useExistingWallet')).toBe(true);
+      expect(secondCall.some(q => q.name === 'privateKey')).toBe(true);
 
-      // Check that service credentials are prompted last
+      // Check that service credentials are prompted third
       const thirdCall = inquirer.prompt.mock.calls[2][0];
       expect(thirdCall.some(q => q.name === 'pinataApiKey')).toBe(true);
+      expect(thirdCall.some(q => q.name === 'googleClientId')).toBe(true);
       
+      // Check that GitHub username is prompted last
       const fourthCall = inquirer.prompt.mock.calls[3][0];
-      expect(fourthCall.some(q => q.name === 'googleClientId')).toBe(true);
+      expect(fourthCall.some(q => q.name === 'githubUsername')).toBe(true);
     });
 
     test('includes default network configuration', async () => {
+      const testPrivateKey = '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51';
       const mockWallet = {
-        privateKey: '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51',
-        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4'
+        address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4',
+        publicKey: '0x0279e3b8a4e7e63be1d5a1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5e1b8b7e3e5'
       };
-      generateWallet.mockReturnValue(mockWallet);
+      deriveWalletFromPrivateKey.mockReturnValue(mockWallet);
 
       inquirer.prompt
         .mockResolvedValueOnce({
@@ -332,15 +327,16 @@ describe('Config Setup - Real Tests', () => {
           tokenSymbol: 'NET'
         })
         .mockResolvedValueOnce({
-          useExistingWallet: false
+          privateKey: testPrivateKey
         })
         .mockResolvedValueOnce({
           pinataApiKey: 'network-pinata-key',
-          pinataApiSecret: 'network-pinata-secret'
-        })
-        .mockResolvedValueOnce({
+          pinataApiSecret: 'network-pinata-secret',
           googleClientId: 'network-client-id.apps.googleusercontent.com',
           googleClientSecret: 'network-google-secret'
+        })
+        .mockResolvedValueOnce({
+          githubUsername: 'network-user'
         });
 
       const result = await setupConfig();

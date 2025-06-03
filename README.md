@@ -4,6 +4,32 @@ Launch a DataDAO on Vana in minutes. This CLI tool automates the entire DataDAO 
 
 ## Quick Start
 
+### Setup Modes
+
+**Quick Setup (5 minutes):**
+```bash
+create-datadao create my-datadao
+# Choose "Quick Setup" when prompted
+```
+- Auto-generates wallet and uses smart defaults
+- Minimal prompts with automated flow
+- Perfect for development and testing
+- Skips external service setup initially
+
+**Full Setup (30-45 minutes):**
+```bash
+create-datadao create my-datadao
+# Choose "Full Setup" when prompted
+```
+- Complete configuration with explanations
+- Step-by-step guidance with confirmations
+- Sets up all external services (Pinata, Google OAuth)
+- Production-ready deployment
+
+Both modes execute the same underlying deployment steps - the difference is in user interaction. Quick mode automates decisions while Normal mode explains and asks for confirmation at each step.
+
+### Basic Usage
+
 ```bash
 npx create-datadao my-first-dao
 ```
@@ -73,7 +99,7 @@ The CLI guides you through setup:
 ? DataDAO name: Weather Data Collective
 ? Token name: Weather Token
 ? Token symbol: WEATHER
-? Private key (or press enter to generate): 
+? Private key (or press enter to generate):
 ```
 
 ### Config File Mode
@@ -109,7 +135,7 @@ After creation, your project contains:
 my-datadao/
 ├── contracts/       # Smart contract code
 ├── proof/          # Data validation logic
-├── refiner/        # Data transformation pipeline  
+├── refiner/        # Data transformation pipeline
 ├── ui/             # Contribution interface
 ├── scripts/        # Deployment scripts
 └── deployment.json # Deployment state

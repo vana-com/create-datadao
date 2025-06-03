@@ -9,7 +9,7 @@ const ora = require('ora');
 const { execSync, exec } = require('child_process');
 const { generateTemplate, guideNextSteps, guideGitHubSetup } = require('../lib/generator');
 const { setupConfig } = require('../lib/config');
-const { validateInput } = require('../lib/validation');
+const { validateConfig } = require('../lib/validation');
 const { deriveWalletFromPrivateKey } = require('../lib/wallet');
 const { formatDataDAOName, formatTokenName, formatTokenSymbol } = require('../lib/formatting');
 const { generatePrivateKey, privateKeyToAccount } = require('viem/accounts');
@@ -350,7 +350,7 @@ async function collectConfiguration(projectName) {
         };
 
       // Validate input
-  validateInput(finalConfig);
+  validateConfig(finalConfig);
 
   return finalConfig;
 }
@@ -369,12 +369,12 @@ async function createDataDAO(projectName, options = {}) {
       const configPath = path.resolve(options.config);
       console.log(chalk.blue(`📄 Loading configuration from ${configPath}`));
       config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      
+
       // Use project name from config if not provided as argument
       if (!projectName && config.projectName) {
         projectName = config.projectName;
       }
-      
+
       console.log(chalk.green('✅ Configuration loaded successfully'));
       console.log();
     } catch (error) {
@@ -389,7 +389,7 @@ async function createDataDAO(projectName, options = {}) {
       console.error(chalk.red('❌ Project name not found in config file or command line'));
       process.exit(1);
     }
-    
+
     const { name } = await inquirer.prompt([
       {
         type: 'input',
@@ -399,6 +399,46 @@ async function createDataDAO(projectName, options = {}) {
       }
     ]);
     projectName = name;
+  }
+
+  // Ask user about setup mode (unless config file provided)
+  let useQuickMode = false;
+  if (!config) {
+    console.log();
+    console.log(chalk.blue('🎯 Setup Mode Selection:'));
+    console.log();
+    console.log(chalk.cyan('Quick Setup (5 minutes):'));
+    console.log('  • Auto-generates wallet');
+    console.log('  • Uses smart defaults');
+    console.log('  • Skips external services (Pinata, Google OAuth)');
+    console.log('  • Perfect for testing and development');
+    console.log();
+    console.log(chalk.cyan('Full Setup (30-45 minutes):'));
+    console.log('  • Complete configuration');
+    console.log('  • External service integration');
+    console.log('  • Production-ready deployment');
+    console.log('  • Guided step-by-step process');
+    console.log();
+
+    const { setupMode } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'setupMode',
+        message: 'Which setup mode would you prefer?',
+        choices: [
+          { name: '⚡ Quick Setup - Get started in 5 minutes', value: 'quick' },
+          { name: '🔧 Full Setup - Complete configuration', value: 'full' }
+        ],
+        default: 'quick'
+      }
+    ]);
+
+    useQuickMode = (setupMode === 'quick');
+  }
+
+  // Route to appropriate setup flow
+  if (useQuickMode) {
+    return await createDataDAOQuick(projectName);
   }
 
   const targetDir = path.resolve(projectName);
@@ -433,26 +473,78 @@ async function createDataDAO(projectName, options = {}) {
 
     // Add confirmation step (skip if using config file for headless operation)
     if (!config) {
-      const { confirmWallet } = await inquirer.prompt([
-        {
-          type: 'confirm',
-          name: 'confirmWallet',
-          message: 'Have you reviewed and saved these wallet credentials?',
-          default: false
-        }
-      ]);
+      let walletConfirmed = false;
+      while (!walletConfirmed) {
+        const { confirmWallet } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'confirmWallet',
+            message: 'Have you reviewed and saved these wallet credentials?',
+            default: false
+          }
+        ]);
 
-      if (!confirmWallet) {
-        console.log(chalk.yellow('Please save your wallet credentials before continuing.'));
-        console.log(chalk.yellow('You can resume setup later with: create-datadao status ' + projectName));
-        console.log();
-          return;
+        if (!confirmWallet) {
+          console.log();
+          const { walletAction } = await inquirer.prompt([
+            {
+              type: 'list',
+              name: 'walletAction',
+              message: 'What would you like to do?',
+              choices: [
+                { name: '📝 I\'ve saved them now, let\'s continue', value: 'continue' },
+                { name: '🔄 Show me the credentials again', value: 'show' },
+                { name: '💡 Why do I need to save these?', value: 'explain' },
+                { name: '⏸️  Exit and resume later', value: 'exit' }
+              ]
+            }
+          ]);
+
+          if (walletAction === 'continue') {
+            walletConfirmed = true;
+          } else if (walletAction === 'show') {
+            console.log();
+            console.log(chalk.green('✓ Your wallet credentials:'));
+            console.log(chalk.cyan('Address:'), finalConfig.address);
+            console.log(chalk.cyan('Public Key:'), finalConfig.publicKey);
+            console.log(chalk.red('Private Key:'), finalConfig.privateKey);
+            console.log(chalk.yellow('💡 Make sure to fund this address with testnet VANA!'));
+            console.log();
+          } else if (walletAction === 'explain') {
+            console.log();
+            console.log(chalk.blue('🔐 Why save wallet credentials?'));
+            console.log('• Your private key is needed to manage your DataDAO');
+            console.log('• The address is where you receive tokens and fees');
+            console.log('• You\'ll need these for future operations');
+            console.log('• Store them securely - they can\'t be recovered if lost');
+            console.log();
+          } else if (walletAction === 'exit') {
+            const { confirmExit } = await inquirer.prompt([
+              {
+                type: 'confirm',
+                name: 'confirmExit',
+                message: 'Are you sure you want to exit? You can resume anytime with create-datadao status.',
+                default: false
+              }
+            ]);
+
+            if (confirmExit) {
+              console.log();
+              console.log(chalk.yellow('Please save your wallet credentials before continuing.'));
+              console.log(chalk.yellow('You can resume setup later with: create-datadao status ' + projectName));
+              console.log();
+              return;
+            }
+          }
+        } else {
+          walletConfirmed = true;
         }
+      }
     } else {
       console.log(chalk.blue('📝 Using provided wallet configuration for headless deployment'));
     }
 
-    // Deploy contracts immediately
+    // Deploy contracts immediately after funding confirmation
     console.log();
     console.log(chalk.blue('🚀 Deploying smart contracts...'));
 
@@ -465,9 +557,20 @@ async function createDataDAO(projectName, options = {}) {
 
       console.log();
       console.log(chalk.green('✅ Smart contracts deployed successfully!'));
+      console.log();
+      console.log(chalk.blue.bold('🎉 Contracts deployed! Let\'s continue setup...'));
+      console.log();
+      console.log(chalk.cyan('Next: Register your DataDAO and complete configuration'));
+      console.log('  • Registration requires 1 VANA + gas fees');
+      console.log('  • We\'ll guide you through each step');
+      console.log();
 
-      // Guide through next steps
-      await guideNextSteps(targetDir, finalConfig);
+      // Automatically continue with guided setup - no need to ask since they chose quick mode
+      console.log(chalk.blue('🚀 Continuing with guided setup...'));
+      execSync('npm run status', {
+        stdio: 'inherit',
+        cwd: targetDir
+      });
 
     } catch (deployError) {
       console.log();
@@ -476,8 +579,8 @@ async function createDataDAO(projectName, options = {}) {
       console.log();
       console.log(chalk.blue('🎯 To continue setup:'));
       console.log(`  1. Fund your wallet: ${finalConfig.address}`);
-      console.log(`  2. Resume deployment: create-datadao deploy:contracts ${projectName}`);
-      console.log(`  3. Check status: create-datadao status ${projectName}`);
+      console.log(`  2. Resume deployment: cd ${projectName} && npm run deploy:contracts`);
+      console.log(`  3. Check status: create-datadao status`);
       console.log();
     }
 
@@ -521,13 +624,26 @@ async function createDataDAOQuick(projectName) {
     // Generate wallet automatically
     console.log(chalk.blue('🔑 Generating wallet...'));
     const wallet = generateWallet();
-    
+
     console.log();
     console.log(chalk.green('✅ Generated wallet:'));
     console.log(chalk.cyan(`   Address: ${wallet.address}`));
     console.log(chalk.red(`   Private Key: ${wallet.privateKey}`));
     console.log(chalk.yellow('   ⚠️  Save this private key securely!'));
     console.log();
+
+    // Collect minimal required info for GitHub automation
+    console.log(chalk.blue('🐙 GitHub Integration'));
+    console.log('GitHub username needed for repository setup...');
+
+    const { githubUsername } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'githubUsername',
+        message: 'GitHub username:',
+        validate: (input) => input.trim() !== '' || 'GitHub username is required'
+      }
+    ]);
 
     // Minimal config with smart defaults
     const config = {
@@ -536,17 +652,18 @@ async function createDataDAOQuick(projectName) {
       tokenName: formatTokenName(projectName),
       tokenSymbol: formatTokenSymbol(projectName),
       ...wallet,
-      githubUsername: null, // Defer until needed
+      githubUsername,
       pinataApiKey: null,   // Defer until needed
       pinataApiSecret: null, // Defer until needed
       googleClientId: null,  // Defer until needed
       googleClientSecret: null, // Defer until needed
       network: 'moksha',
       rpcUrl: 'https://rpc.moksha.vana.org',
-      chainId: 14800
+      chainId: 14800,
+      quickMode: true  // Flag for scripts to detect quick mode
     };
 
-    // Generate project
+    // Generate project (this will include GitHub setup)
     console.log(chalk.blue('📦 Generating your DataDAO project...'));
     await generateTemplate(targetDir, config);
 
@@ -556,21 +673,110 @@ async function createDataDAOQuick(projectName) {
     console.log(chalk.blue('📁 Project location:'), targetDir);
     console.log();
 
-    // Show next steps
-    console.log(chalk.blue.bold('🎯 Next steps:'));
+    // Offer to fund wallet and continue immediately
+    console.log(chalk.blue.bold('🎯 Continue Setup:'));
     console.log();
-    console.log(chalk.cyan('1. Fund your wallet:'));
-    console.log(`   Visit: ${chalk.underline('https://faucet.vana.org')}`);
-    console.log(`   Address: ${wallet.address}`);
+    console.log(chalk.cyan('Your wallet needs VANA tokens to deploy contracts.'));
+    console.log(`Visit: ${chalk.underline('https://faucet.vana.org')}`);
+    console.log(`Address: ${wallet.address}`);
     console.log();
-    console.log(chalk.cyan('2. Complete setup:'));
-    console.log(`   cd ${projectName}`);
-    console.log('   create-datadao status');
+
+    // Single consolidated prompt instead of two separate ones
+    let readyToDeploy = false;
+    while (!readyToDeploy) {
+      const { fundingAction } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'fundingAction',
+          message: 'What would you like to do?',
+          choices: [
+            { name: '💰 I\'ve funded my wallet, let\'s deploy', value: 'deploy' },
+            { name: '⏳ I need more time to fund my wallet', value: 'wait' },
+            { name: '🔄 Show funding instructions again', value: 'instructions' },
+            { name: '💡 Check my wallet balance', value: 'check' },
+            { name: '⏸️  Exit and resume later', value: 'exit' }
+          ]
+        }
+      ]);
+
+      if (fundingAction === 'deploy') {
+        readyToDeploy = true;
+      } else if (fundingAction === 'wait') {
+        console.log(chalk.blue('Take your time! We\'ll wait here for you.'));
+        console.log();
+      } else if (fundingAction === 'instructions') {
+        console.log();
+        console.log(chalk.cyan('💰 Funding Instructions:'));
+        console.log(`1. Visit: ${chalk.underline('https://faucet.vana.org')}`);
+        console.log(`2. Enter your wallet address: ${wallet.address}`);
+        console.log('3. Request testnet VANA tokens');
+        console.log('4. Wait 1-2 minutes for tokens to arrive');
+        console.log('5. Come back here and choose "I\'ve funded my wallet"');
+        console.log();
+      } else if (fundingAction === 'check') {
+        console.log(chalk.blue('💡 Check your balance at:'));
+        console.log(`https://moksha.vanascan.io/address/${wallet.address}`);
+        console.log();
+      } else if (fundingAction === 'exit') {
+        const { confirmExit } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'confirmExit',
+            message: 'Are you sure you want to exit? You can resume anytime with create-datadao status.',
+            default: false
+          }
+        ]);
+
+        if (confirmExit) {
+          console.log();
+          console.log(chalk.yellow('No problem! Resume anytime with:'));
+          console.log(`  cd ${projectName}`);
+          console.log('  create-datadao status');
+          console.log();
+          return;
+        }
+      }
+    }
+
+    // Deploy contracts immediately after funding confirmation
     console.log();
-    console.log(chalk.cyan('3. Deploy when ready:'));
-    console.log('   npm run deploy:contracts');
-    console.log();
-    console.log(chalk.gray('💡 Use "create-datadao status" anytime to continue the setup'));
+    console.log(chalk.blue('🚀 Deploying smart contracts...'));
+
+    try {
+      const { execSync } = require('child_process');
+      execSync('npm run deploy:contracts', {
+        stdio: 'inherit',
+        cwd: targetDir
+      });
+
+      console.log();
+      console.log(chalk.green('✅ Smart contracts deployed successfully!'));
+      console.log();
+      console.log(chalk.blue.bold('🎉 Contracts deployed! Let\'s continue setup...'));
+      console.log();
+      console.log(chalk.cyan('Next: Register your DataDAO and complete configuration'));
+      console.log('  • Registration requires 1 VANA + gas fees');
+      console.log('  • We\'ll guide you through each step');
+      console.log();
+
+      // Automatically continue with guided setup - no need to ask since they chose quick mode
+      console.log(chalk.blue('🚀 Continuing with guided setup...'));
+      execSync('npm run status', {
+        stdio: 'inherit',
+        cwd: targetDir
+      });
+
+    } catch (deployError) {
+      console.log();
+      console.log(chalk.red('❌ Contract deployment failed'));
+      console.log(chalk.yellow('This is usually due to insufficient VANA tokens or network issues.'));
+      console.log();
+      console.log(chalk.blue('🎯 To continue setup:'));
+      console.log(`  1. Fund your wallet: ${wallet.address}`);
+      console.log(`  2. Resume deployment: cd ${projectName} && npm run deploy:contracts`);
+      console.log(`  3. Check status: create-datadao status`);
+      console.log();
+    }
 
   } catch (error) {
     console.error(chalk.red('Error creating DataDAO:'), error.message);
@@ -584,7 +790,7 @@ async function createDataDAOQuick(projectName) {
 function generateWallet() {
   const privateKey = generatePrivateKey();
   const account = privateKeyToAccount(privateKey);
-  
+
   return {
     privateKey,
     address: account.address,

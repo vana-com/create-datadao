@@ -12,8 +12,12 @@
   ],
   "scripts": {
     "test": "jest",
-    "test:watch": "jest --watch", 
-    "test:coverage": "jest --coverage"
+    "test:unit": "jest __tests__/lib/",
+    "test:integration": "jest __tests__/integration/ --testTimeout=120000",
+    "test:production": "jest __tests__/production/ --testTimeout=300000",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit:watch": "jest __tests__/lib/ --watch"
   },
   "keywords": [
     "vana",
@@ -39,9 +43,9 @@
     "node": ">=14.0.0"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
     "@types/jest": "^29.5.0",
-    "ganache": "^7.9.1"
+    "ganache": "^7.9.1",
+    "jest": "^29.7.0"
   },
   "jest": {
     "testEnvironment": "node",
@@ -67,7 +71,9 @@
         "statements": 80
       }
     },
-    "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"],
+    "setupFilesAfterEnv": [
+      "<rootDir>/__tests__/setup.js"
+    ],
     "clearMocks": true,
     "resetMocks": true,
     "restoreMocks": true

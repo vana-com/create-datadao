@@ -1,23 +1,26 @@
-const DeploymentStateManager = require('../state-manager');
+// Mock dependencies
+jest.mock('fs-extra');
+jest.mock('chalk', () => ({
+  green: (text) => `[green]${text}[/green]`,
+  yellow: (text) => `[yellow]${text}[/yellow]`,
+  red: (text) => `[red]${text}[/red]`,
+  blue: (text) => `[blue]${text}[/blue]`,
+  gray: (text) => `[gray]${text}[/gray]`
+}));
+jest.mock('inquirer');
+
+// Import after mocks are set up
 const fs = require('fs-extra');
 const path = require('path');
 const chalk = require('chalk');
 const inquirer = require('inquirer');
 
-// Mock dependencies
-jest.mock('fs-extra');
-jest.mock('chalk', () => ({
-  green: jest.fn(text => `[green]${text}[/green]`),
-  yellow: jest.fn(text => `[yellow]${text}[/yellow]`),
-  red: jest.fn(text => `[red]${text}[/red]`),
-  blue: jest.fn(text => `[blue]${text}[/blue]`),
-  gray: jest.fn(text => `[gray]${text}[/gray]`)
-}));
-jest.mock('inquirer');
-
 describe('DeploymentStateManager', () => {
   let stateManager;
   let mockDeploymentData;
+  
+  // Require after mocks are setup
+  const DeploymentStateManager = require('../state-manager');
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -270,12 +273,10 @@ describe('DeploymentStateManager', () => {
   describe('showRecoveryMenu', () => {
     test('shows success message when no errors detected', async () => {
       stateManager.state.errors = {};
-
+      
       await stateManager.showRecoveryMenu();
-
-      // Debug: check what console.log was actually called with
-      console.error('Console.log calls:', console.log.mock.calls);
-      expect(console.log).toHaveBeenCalledWith('✅ No errors detected. All steps completed successfully!');
+      
+      expect(console.log).toHaveBeenCalledWith('[green]✅ No errors detected. All steps completed successfully![/green]');
     });
 
     test('displays error suggestions and returns user choice', async () => {
@@ -284,7 +285,7 @@ describe('DeploymentStateManager', () => {
 
       const result = await stateManager.showRecoveryMenu();
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Issues detected'));
+      expect(console.log).toHaveBeenCalledWith('[yellow]\n⚠️  Issues detected in your DataDAO setup:[/yellow]');
       expect(console.log).toHaveBeenCalledWith('[red]❌ Contract Deployment: Smart contract deployment failed[/red]');
       expect(result).toBe('retry');
     });

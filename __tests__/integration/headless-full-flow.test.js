@@ -4,6 +4,9 @@ const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
 
+// Ensure fs is not mocked for this integration test
+jest.unmock('fs-extra');
+
 const TEST_DIR = path.join(__dirname, '../../test-output');
 const CLI_PATH = path.join(__dirname, '../../bin/create-datadao.js');
 const TEST_CONFIG_PATH = path.join(__dirname, '../config/test-config.json');

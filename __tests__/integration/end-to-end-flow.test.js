@@ -11,6 +11,7 @@ const { execSync } = require('child_process');
 const { generateProject } = require('../../lib/generator');
 const TemplateEngine = require('../../lib/template-engine');
 const StateManager = require('../../src/templates/state-manager');
+const { validateConfig } = require('../../lib/validation');
 
 // Test timeout for long-running operations
 jest.setTimeout(60000);
@@ -25,8 +26,6 @@ jest.mock('../../lib/blockchain', () => ({
 
 // Mock child_process but capture the commands
 jest.mock('child_process');
-
-const { execSync } = require('child_process');
 
 describe('End-to-End User Journey', () => {
   const TEST_DIR = path.join(__dirname, '../../test-e2e-temp');
@@ -52,6 +51,8 @@ describe('End-to-End User Journey', () => {
       projectName: TEST_PROJECT,
       privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       dlpName: 'Awesome Data Pool',
+      tokenName: 'Awesome Token',
+      tokenSymbol: 'AWE',
       dlpToken: 'AWESOME',
       googleClientId: 'test-client-id',
       googleClientSecret: 'test-client-secret',
@@ -59,6 +60,9 @@ describe('End-to-End User Journey', () => {
       refinerRepo: 'https://github.com/testuser/awesome-refiner'
     };
 
+    // Validate the configuration before project creation
+    validateConfig(config);
+    
     // Generate the project
     await generateProject(projectPath, config);
     
@@ -226,6 +230,8 @@ Vesting Wallet Address: 0x28554ce95758A5824292B664Dd752d2C12a836E6
       projectName: 'interrupted-dao',
       privateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       dlpName: 'Interrupted Pool',
+      tokenName: 'Interrupted Token',
+      tokenSymbol: 'INT',
       dlpToken: 'INTRRPT'
     };
 
