@@ -8,13 +8,138 @@
  * 645-669,693-699,790-822,841-842,866-982,1086-1087,1089,1128
  */
 
-const { /* import all functions */ } = require('../../lib/generator');
+const {
+  generateTemplate,
+  guideNextSteps,
+  guideGitHubSetup,
+  checkGitHubCLI,
+  createRepositoriesAutomatically,
+  guideManualRepositorySetup
+} = require('../../lib/generator');
+
+// Mock dependencies
+jest.mock('fs-extra');
+jest.mock('child_process');
+jest.mock('ora');
+jest.mock('inquirer');
+jest.mock('../../lib/wallet');
+jest.mock('viem');
+jest.mock('../../lib/template-engine');
+
+const fs = require('fs-extra');
+const { execSync } = require('child_process');
+const ora = require('ora');
+const inquirer = require('inquirer');
+const { deriveWalletFromPrivateKey } = require('../../lib/wallet');
+const { createPublicClient } = require('viem');
+const TemplateEngine = require('../../lib/template-engine');
 
 describe('Generator Functions - Additional Coverage', () => {
+  let mockSpinner;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Mock ora spinner
+    mockSpinner = {
+      start: jest.fn().mockReturnThis(),
+      succeed: jest.fn().mockReturnThis(),
+      fail: jest.fn().mockReturnThis(),
+      text: ''
+    };
+    ora.mockReturnValue(mockSpinner);
+
+    // Mock fs-extra
+    fs.ensureDirSync = jest.fn();
+    fs.writeFileSync = jest.fn();
+    fs.readFileSync = jest.fn();
+    fs.existsSync = jest.fn();
+
+    // Mock execSync
+    execSync.mockReturnValue('mock output');
+
+    // Mock template engine
+    const mockTemplateEngine = {
+      processTemplateToFile: jest.fn(),
+      getDefaultVanaConfig: jest.fn().mockReturnValue({})
+    };
+    TemplateEngine.mockReturnValue(mockTemplateEngine);
+  });
   describe('generateTemplate - uncovered paths', () => {
-    test.todo('derives wallet when address or publicKey is missing (lines 21-24)');
-    test.todo('handles wallet derivation errors');
-    test.todo('handles missing pinataApiKey and pinataApiSecret (line 53)');
+    test('derives wallet when address or publicKey is missing (lines 21-24)', async () => {
+      // Mock deriveWalletFromPrivateKey to return wallet credentials
+      const mockWallet = {
+        address: '0x742D4C2a3A7A40D52fE50000a3B25F3E1A652fE7',
+        publicKey: '0x04abc123...'
+      };
+      deriveWalletFromPrivateKey.mockReturnValue(mockWallet);
+
+      // Config without address or publicKey
+      const config = {
+        dlpName: 'Test DAO',
+        tokenName: 'Test Token',
+        tokenSymbol: 'TEST',
+        privateKey: '0x' + 'a'.repeat(64),
+        githubUsername: 'testuser',
+        network: 'moksha'
+      };
+
+      // Mock fs.writeFileSync to prevent actual file writes during testing
+      fs.writeFileSync.mockImplementation(() => {});
+
+      try {
+        await generateTemplate('/test/path', config);
+      } catch (error) {
+        // Expected to fail on other parts, but wallet derivation should have been called
+      }
+
+      expect(deriveWalletFromPrivateKey).toHaveBeenCalledWith(config.privateKey);
+      expect(config.address).toBe(mockWallet.address);
+      expect(config.publicKey).toBe(mockWallet.publicKey);
+    });
+
+    test('handles wallet derivation errors', async () => {
+      // Mock deriveWalletFromPrivateKey to throw an error
+      deriveWalletFromPrivateKey.mockImplementation(() => {
+        throw new Error('Invalid private key');
+      });
+
+      const config = {
+        dlpName: 'Test DAO',
+        tokenName: 'Test Token',
+        tokenSymbol: 'TEST',
+        privateKey: 'invalid-key',
+        githubUsername: 'testuser',
+        network: 'moksha'
+      };
+
+      await expect(generateTemplate('/test/path', config)).rejects.toThrow();
+      expect(deriveWalletFromPrivateKey).toHaveBeenCalledWith(config.privateKey);
+    });
+
+    test('skips wallet derivation when address and publicKey are provided', async () => {
+      const config = {
+        dlpName: 'Test DAO',
+        tokenName: 'Test Token',
+        tokenSymbol: 'TEST',
+        privateKey: '0x' + 'a'.repeat(64),
+        address: '0x742D4C2a3A7A40D52fE50000a3B25F3E1A652fE7',
+        publicKey: '0x04abc123...',
+        githubUsername: 'testuser',
+        network: 'moksha'
+      };
+
+      // Mock fs.writeFileSync to prevent actual file writes during testing
+      fs.writeFileSync.mockImplementation(() => {});
+
+      try {
+        await generateTemplate('/test/path', config);
+      } catch (error) {
+        // Expected to fail on other parts, but wallet derivation should be skipped
+      }
+
+      expect(deriveWalletFromPrivateKey).not.toHaveBeenCalled();
+    });
     test.todo('handles git clone errors with detailed error messages (lines 96-102)');
     test.todo('handles deployment.json write errors (line 170)');
   });
