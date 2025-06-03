@@ -1,238 +1,274 @@
 # create-datadao
 
-[![semantic-release: conventionalcommits](https://img.shields.io/badge/semantic--release-conventionalcommits-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
-
-🚀 **CLI tool to create and manage DataDAOs on the Vana network**
-
-Generate complete DataDAO projects with smart contracts, proof systems, data refinement, and UI - all from a single command.
+Launch a DataDAO on Vana in minutes. This CLI tool automates the entire DataDAO creation workflow—from smart contracts to data validation.
 
 ## Quick Start
 
-```bash
-# Create a new DataDAO project
-npx create-datadao create my-datadao
+### Setup Modes
 
-# Or install globally for easier management
-npm install -g create-datadao
+**Quick Setup (5 minutes):**
+```bash
 create-datadao create my-datadao
+# Choose "Quick Setup" when prompted
 ```
+- Auto-generates wallet and uses smart defaults
+- Minimal prompts with automated flow
+- Perfect for development and testing
+- Skips external service setup initially
 
-## Global Commands
+**Full Setup (30-45 minutes):**
+```bash
+create-datadao create my-datadao
+# Choose "Full Setup" when prompted
+```
+- Complete configuration with explanations
+- Step-by-step guidance with confirmations
+- Sets up all external services (Pinata, Google OAuth)
+- Production-ready deployment
 
-The CLI works from anywhere - no need to `cd` into project directories:
+Both modes execute the same underlying deployment steps - the difference is in user interaction. Quick mode automates decisions while Normal mode explains and asks for confirmation at each step.
+
+### Basic Usage
 
 ```bash
-# Enhanced status with recovery options
-create-datadao status my-datadao
-
-# Deploy contracts with better error handling
-create-datadao deploy:contracts my-datadao
-
-# Register DataDAO with automatic dlpId detection
-create-datadao register my-datadao
-
-# Start UI with complete configuration
-create-datadao ui my-datadao
-
-# Get help
-create-datadao --help
+npx create-datadao my-first-dao
 ```
 
-## Smart Error Recovery
+Follow the prompts. You'll have a DataDAO deployed in ~15 minutes.
 
-The CLI now automatically detects and helps recover from common issues:
+## What This Tool Does
+
+1. **Deploys smart contracts** - Token, liquidity pool, and vesting contracts on Vana testnet
+2. **Registers your DataDAO** - Makes it discoverable on the network
+3. **Sets up data validation** - Configures proof-of-contribution and data refinement
+4. **Creates a UI** - Deploys a contribution interface for your users
+
+## Prerequisites
+
+- Node.js 18+
+- A funded wallet (~10 VANA for deployment + registration)
+- GitHub account (for proof/refiner repos)
+- Google OAuth credentials (for UI authentication)
+
+Get testnet VANA: https://faucet.vana.org
+
+## Installation
 
 ```bash
-# If something goes wrong, the status command offers recovery
-create-datadao status my-datadao
-# → 🔧 Fix configuration issues
-# → 🔄 Show recovery options
-# → 📝 Update credentials
-# → 📊 View detailed errors
+# Global installation
+npm install -g create-datadao
+
+# Or use npx (recommended)
+npx create-datadao
 ```
 
-**Common Recovery Scenarios:**
-- **Insufficient balance** → Automatic funding guidance
-- **Transaction failures** → Retry with exponential backoff
-- **Missing credentials** → Interactive credential update
-- **Configuration drift** → Automatic validation and fixes
+## Commands
 
-## Enhanced User Experience
+### Create a New DataDAO
 
-### Cleaner Output
-- **👤 Clear user input markers** - Easy to spot where you provided input
-- **📊 Progress indicators** - Visual progress bars for long operations
-- **🎯 Focused messaging** - Less repetitive text, more actionable information
-
-### Automatic Detection
-- **dlpId extraction** - Automatic detection after registration
-- **refinerId polling** - Smart transaction monitoring (with manual fallback)
-- **Contract validation** - Automatic verification of deployment state
-
-### Configuration Management
 ```bash
-# Interactive credential updates
-create-datadao status my-datadao
-# → Choose "Update credentials"
-# → Select: Pinata, Google OAuth, or view current config
+create-datadao my-datadao
 ```
 
-## Requirements
+Options:
+- `--config <path>` - Use a JSON configuration file
+- `--quick` - Skip optional features for faster setup
 
-- **Node.js 16+**
-- **Wallet with VANA tokens** - Get testnet tokens from [faucet.vana.org](https://faucet.vana.org)
-- **Pinata account** - For IPFS storage ([pinata.cloud](https://pinata.cloud))
-- **Google Cloud project** - For OAuth ([console.cloud.google.com](https://console.cloud.google.com))
-- **GitHub account** - For template repositories
-- **GitHub CLI** (optional) - For automated repository setup ([cli.github.com](https://cli.github.com))
+### Check Status
 
-## Generated Project Structure
+```bash
+create-datadao status           # Lists all projects
+create-datadao status my-dao    # Specific project status
+```
+
+### Deploy Individual Components
+
+```bash
+create-datadao deploy:contracts [project-path]
+create-datadao register [project-path]
+create-datadao ui [project-path]
+```
+
+## Configuration
+
+### Interactive Mode (Default)
+
+The CLI guides you through setup:
+
+```bash
+? DataDAO name: Weather Data Collective
+? Token name: Weather Token
+? Token symbol: WEATHER
+? Private key (or press enter to generate):
+```
+
+### Config File Mode
+
+Create a config file for automated deployment:
+
+```json
+{
+  "projectName": "weather-dao",
+  "privateKey": "0x...",
+  "dlpName": "Weather Data Collective",
+  "dlpToken": "WEATHER",
+  "tokenName": "Weather Token",
+  "tokenSymbol": "WEATHER",
+  "githubUsername": "your-username",
+  "googleClientId": "your-client-id",
+  "googleClientSecret": "your-secret",
+  "pinataApiKey": "your-key",
+  "pinataApiSecret": "your-secret"
+}
+```
+
+Deploy with:
+```bash
+create-datadao --config weather-config.json
+```
+
+## Project Structure
+
+After creation, your project contains:
 
 ```
 my-datadao/
-├── contracts/          # Smart contracts (cloned locally)
-├── proof/             # Proof of contribution (your GitHub repo)
-├── refiner/           # Data refinement (your GitHub repo)
-├── ui/                # User interface (cloned locally)
-├── scripts/           # Deployment automation
-├── deployment.json    # Project state and addresses
-├── deployment.json.backup  # Automatic backup
-└── package.json       # Project dependencies and scripts
+├── contracts/       # Smart contract code
+├── proof/          # Data validation logic
+├── refiner/        # Data transformation pipeline
+├── ui/             # Contribution interface
+├── scripts/        # Deployment scripts
+└── deployment.json # Deployment state
 ```
 
-## Setup Flow with Error Recovery
+## Deployment Flow
 
-The CLI now provides robust error handling at each step:
+1. **Contract Deployment** (~3 minutes)
+   - Deploys token contract
+   - Deploys DataLiquidityPool proxy
+   - Sets up vesting wallet
 
-### 1. **Project Creation**
-- Enhanced validation of inputs
-- Automatic wallet derivation with verification
-- Credential validation before proceeding
+2. **DataDAO Registration** (~1 minute)
+   - Registers with Vana network
+   - Requires 1 VANA fee
+   - Returns unique dlpId
 
-### 2. **Smart Contract Deployment**
-- **Balance checking** with funding guidance
-- **Network validation** and retry logic
-- **Automatic address extraction** from deployment logs
-- **State persistence** with backup
+3. **Proof & Refiner Setup** (~5 minutes)
+   - Creates GitHub repositories
+   - Configures validation rules
+   - Sets up data pipeline
 
-### 3. **DataDAO Registration**
-- **Automatic dlpId detection** via blockchain query
-- **Transaction monitoring** with status updates
-- **Fallback to manual registration** with guided steps
+4. **UI Deployment** (~5 minutes)
+   - Deploys to Vercel
+   - Configures authentication
+   - Enables data contributions
 
-### 4. **Component Configuration**
-- **Proof**: Enhanced dlpId pattern matching, automatic git setup
-- **Refiner**: Smart refinerId detection, IPFS upload automation
-- **UI**: Complete environment setup including NEXTAUTH_SECRET
+## Common Issues
 
-### 5. **Continuous Monitoring**
-- **Health checks** for all components
-- **Configuration drift detection**
-- **Interactive recovery menus**
+### Insufficient Funds
 
-## Error Handling & Recovery
-
-### Automatic Recovery
-```bash
-# The CLI detects issues and offers solutions
-create-datadao status my-datadao
-# → ⚠️ Issues detected in your setup
-# → 🔧 Fix configuration issues
-# → 🔄 Show recovery options
+```
+Error: Insufficient funds for transaction
 ```
 
-### Manual Recovery
+**Fix:** Get testnet VANA from https://faucet.vana.org
+
+### Registration Failed
+
+```
+Error: Transaction reverted
+```
+
+**Fix:** Ensure contracts deployed successfully. Run `create-datadao status` to check.
+
+### GitHub Repository Exists
+
+```
+Warning: Repository already exists
+```
+
+**Fix:** The tool continues with existing repos. No action needed.
+
+## Recovery
+
+If deployment fails midway:
+
 ```bash
-# Update any credentials that changed
-create-datadao status my-datadao
-# → Choose "Update credentials"
-# → Select credential type to update
+create-datadao status my-dao    # Check current state
+npm run deploy:contracts        # Resume from failure point
+```
+
+All progress is saved in `deployment.json`.
+
+## Advanced Usage
+
+### Custom Templates
+
+Fork template repositories before creation:
+- Proof: https://github.com/vana-com/vana-satya-proof-template-py
+- Refiner: https://github.com/vana-com/vana-data-refinement-template
+
+### Manual Deployment
+
+Each step can be run independently:
+
+```bash
+cd my-datadao
+npm run deploy:contracts
+npm run register:datadao
+npm run deploy:proof
+npm run deploy:refiner
+npm run deploy:ui
 ```
 
 ### State Management
-- **Automatic backups** before each operation
-- **Rollback capability** for failed operations
-- **Incremental progress** tracking
-- **Resume from any point** in the deployment
 
-## Development Workflow
-
+View deployment state:
 ```bash
-# 1. Create project with enhanced validation
-create-datadao create my-datadao
-
-# 2. Monitor progress with rich status
-create-datadao status my-datadao
-
-# 3. Deploy with automatic error recovery
-create-datadao deploy:contracts my-datadao
-
-# 4. Register with automatic dlpId detection
-create-datadao register my-datadao
-
-# 5. Configure components with smart automation
-create-datadao deploy:proof my-datadao
-create-datadao deploy:refiner my-datadao
-
-# 6. Test UI with complete configuration
-create-datadao ui my-datadao
-
-# 7. Recover from any issues
-create-datadao status my-datadao
+cat deployment.json | jq
 ```
 
-## Troubleshooting
+Key fields:
+- `tokenAddress` - Your DataDAO token
+- `proxyAddress` - DataLiquidityPool address
+- `dlpId` - Network registration ID
+- `state` - Deployment progress
 
-### Enhanced Error Messages
+## Environment Variables
 
-**"Configuration issues detected"**
+Optional configuration via `.env`:
+
 ```bash
-create-datadao status my-datadao
-# → Automatic validation and guided fixes
-# → Interactive credential updates
-# → Configuration consistency checks
+PRIVATE_KEY=0x...
+GITHUB_USERNAME=your-username
+PINATA_API_KEY=your-key
+PINATA_API_SECRET=your-secret
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-secret
 ```
 
-**"Transaction failed"**
-```bash
-# Automatic retry with exponential backoff
-# Clear error messages with next steps
-# Fallback to manual completion with guidance
-```
+## Network Information
 
-**"Component setup failed"**
-```bash
-# Step-by-step recovery instructions
-# Automatic state cleanup and retry
-# Manual override options available
-```
+**Vana Moksha Testnet**
+- Chain ID: 14800
+- RPC: https://rpc.moksha.vana.org
+- Explorer: https://moksha.vanascan.io
+- Faucet: https://faucet.vana.org
 
-### Recovery Commands
-```bash
-# View detailed error information
-create-datadao status my-datadao
-# → Choose "View detailed errors"
+**Key Contracts**
+- DataRegistry: `0xd0fD0cFA96a01bEc1F3c26d9D0Eb0F20fc2BB30C`
 
-# Retry failed operations
-create-datadao status my-datadao
-# → Choose "Show recovery options"
-# → Choose "Retry failed steps automatically"
+## Support
 
-# Update configuration
-create-datadao status my-datadao
-# → Choose "Update credentials"
-```
-
-## Architecture
-
-- **CLI Layer**: Global commands with smart project detection
-- **Generator**: Template cloning and fresh repository creation
-- **Blockchain**: viem integration for wallet and contract operations
-- **GitHub**: CLI integration for automated repository setup
-- **Automation**: Deployment scripts with error recovery
-- **UI**: React development server with hot reload
+- **Issues:** https://github.com/vana-com/create-datadao/issues
+- **Docs:** https://docs.vana.org
+- **Discord:** https://discord.gg/vana
 
 ## Contributing
+
+Pull requests welcome. For major changes, please open an issue first.
+
+### Development
 
 ```bash
 git clone https://github.com/vana-com/create-datadao
@@ -241,7 +277,12 @@ npm install
 npm link  # Test locally
 ```
 
----
+### Running Tests
 
-**Built for the Vana network** • [Documentation](https://docs.vana.org) • [Discord](https://discord.gg/EpAKHGtE)
+```bash
+npm test
+```
 
+## License
+
+MIT

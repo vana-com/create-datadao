@@ -4,6 +4,7 @@ const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 const chalk = require('chalk');
+const TemplateEngine = require('../lib/template-engine');
 
 /**
  * Run the generator
@@ -133,23 +134,30 @@ services:
       dockerCompose
     );
 
-    // Create scripts directory and copy script templates
+    // Create scripts directory and generate script templates
     fs.mkdirSync(path.join(targetDir, 'scripts'));
 
-    // Copy script templates
+    // Initialize template engine with default Vana config
+    const templateEngine = new TemplateEngine();
+    const defaultConfig = templateEngine.getDefaultVanaConfig();
+
+    // Process template files (with .template extension)
+    templateEngine.processTemplateToFile(
+      'deploy-contracts.js.template',
+      path.join(targetDir, 'scripts', 'deploy-contracts.js'),
+      defaultConfig
+    );
+
+    templateEngine.processTemplateToFile(
+      'register-datadao.js.template',
+      path.join(targetDir, 'scripts', 'register-datadao.js'),
+      defaultConfig
+    );
+
+    // Copy non-template scripts directly
     fs.copyFileSync(
       path.join(__dirname, 'templates', 'setup.js'),
       path.join(targetDir, 'scripts', 'setup.js')
-    );
-
-    fs.copyFileSync(
-      path.join(__dirname, 'templates', 'deploy-contracts.js'),
-      path.join(targetDir, 'scripts', 'deploy-contracts.js')
-    );
-
-    fs.copyFileSync(
-      path.join(__dirname, 'templates', 'register-datadao.js'),
-      path.join(targetDir, 'scripts', 'register-datadao.js')
     );
 
     fs.copyFileSync(

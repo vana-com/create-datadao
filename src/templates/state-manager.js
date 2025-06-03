@@ -202,8 +202,14 @@ class DeploymentStateManager {
       issues.push('Marked as registered but missing dlpId');
     }
 
-    if (this.state.state.contractsDeployed && (!this.state.tokenAddress || !this.state.proxyAddress)) {
-      issues.push('Marked as deployed but missing contract addresses');
+    if (this.state.state.contractsDeployed) {
+      // Check both old and new contract address formats
+      const hasOldFormat = this.state.tokenAddress && this.state.proxyAddress;
+      const hasNewFormat = this.state.contracts && this.state.contracts.tokenAddress && this.state.contracts.proxyAddress;
+      
+      if (!hasOldFormat && !hasNewFormat) {
+        issues.push('Marked as deployed but missing contract addresses');
+      }
     }
 
     return issues;
@@ -345,10 +351,45 @@ class DeploymentStateManager {
   }
 
   /**
+   * Get the next incomplete step in the deployment process
+   */
+  getNextIncompleteStep() {
+    const steps = [
+      'contractsDeployed',
+      'dataDAORegistered', 
+      'proofConfigured',
+      'refinerConfigured',
+      'uiConfigured'
+    ];
+    
+    for (const step of steps) {
+      if (!this.isCompleted(step)) {
+        return step;
+      }
+    }
+    
+    return null; // All steps completed
+  }
+
+  /**
    * Validate required fields for a step
    */
   validateRequiredFields(requiredFields) {
-    const missing = requiredFields.filter(field => !this.state[field]);
+    const missing = requiredFields.filter(field => {
+      // Handle nested field paths like 'contracts.tokenAddress'
+      const fieldParts = field.split('.');
+      let value = this.state;
+      
+      for (const part of fieldParts) {
+        if (!value || !value[part]) {
+          return true; // Field is missing
+        }
+        value = value[part];
+      }
+      
+      return false; // Field exists
+    });
+    
     if (missing.length > 0) {
       throw new Error(`Missing required fields: ${missing.join(', ')}`);
     }
