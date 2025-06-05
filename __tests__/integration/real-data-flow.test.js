@@ -50,7 +50,11 @@ describe('Real Data Flow Integration', () => {
       tokenName: 'TestToken',
       tokenSymbol: 'TEST',
       address: '0x7e93327616e828fCBf5E7081BD284607fD6C23C4',
-      privateKey: '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51'
+      privateKey: '0x3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51',
+      pinataApiKey: 'test-pinata-key',
+      pinataApiSecret: 'test-pinata-secret',
+      googleClientId: 'test-client-id.apps.googleusercontent.com',
+      googleClientSecret: 'test-client-secret'
     };
     fs.writeFileSync(deploymentPath, JSON.stringify(initialConfig, null, 2));
     

@@ -56,6 +56,8 @@ describe('End-to-End User Journey', () => {
       dlpToken: 'AWESOME',
       googleClientId: 'test-client-id',
       googleClientSecret: 'test-client-secret',
+      pinataApiKey: 'test-pinata-key',
+      pinataApiSecret: 'test-pinata-secret',
       proofRepo: 'https://github.com/testuser/awesome-proof',
       refinerRepo: 'https://github.com/testuser/awesome-refiner'
     };
@@ -232,7 +234,11 @@ Vesting Wallet Address: 0x28554ce95758A5824292B664Dd752d2C12a836E6
       dlpName: 'Interrupted Pool',
       tokenName: 'Interrupted Token',
       tokenSymbol: 'INT',
-      dlpToken: 'INTRRPT'
+      dlpToken: 'INTRRPT',
+      googleClientId: 'test-client-id',
+      googleClientSecret: 'test-client-secret',
+      pinataApiKey: 'test-pinata-key',
+      pinataApiSecret: 'test-pinata-secret'
     };
 
     // Step 1: Start project creation

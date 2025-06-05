@@ -22,6 +22,14 @@ jest.mock('../../lib/wallet', () => ({
 const { deriveWalletFromPrivateKey } = require('../../lib/wallet');
 
 describe('Validation Functions - Additional Coverage', () => {
+  // Common required fields for test configs
+  const requiredExternalServices = {
+    pinataApiKey: 'test-pinata-key',
+    pinataApiSecret: 'test-pinata-secret',
+    googleClientId: 'test-google-client-id',
+    googleClientSecret: 'test-google-client-secret'
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -106,7 +114,8 @@ describe('Validation Functions - Additional Coverage', () => {
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
         privateKey: '0x' + 'a'.repeat(64),
-        address: 'invalid-address'  // Invalid format
+        address: 'invalid-address',  // Invalid format
+        ...requiredExternalServices
       };
 
       expect(() => validateConfig(invalidConfig)).toThrow('Invalid address format. Must be a 0x-prefixed 40-character hex string');
@@ -118,7 +127,8 @@ describe('Validation Functions - Additional Coverage', () => {
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
         privateKey: '0x' + 'a'.repeat(64),
-        address: '0x742D4C2a3A7A40D52fE50000a3B25F3E1A652fE7'  // Valid format
+        address: '0x742D4C2a3A7A40D52fE50000a3B25F3E1A652fE7',  // Valid format
+        ...requiredExternalServices
       };
 
       expect(() => validateConfig(validConfig)).not.toThrow();
@@ -130,7 +140,8 @@ describe('Validation Functions - Additional Coverage', () => {
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
         privateKey: '0x' + 'a'.repeat(64),
-        address: '742D4C2a3A7A40D52fE50000a3B25F3E1A652fE7'  // Missing 0x prefix
+        address: '742D4C2a3A7A40D52fE50000a3B25F3E1A652fE7',  // Missing 0x prefix
+        ...requiredExternalServices
       };
 
       expect(() => validateConfig(invalidConfig)).toThrow('Invalid address format. Must be a 0x-prefixed 40-character hex string');
@@ -142,7 +153,8 @@ describe('Validation Functions - Additional Coverage', () => {
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
         privateKey: '0x' + 'a'.repeat(64),
-        address: '0x742D4C2a3A7A40D52fE50000a3B25F3E1A652'  // Too short
+        address: '0x742D4C2a3A7A40D52fE50000a3B25F3E1A652',  // Too short
+        ...requiredExternalServices
       };
 
       expect(() => validateConfig(invalidConfig)).toThrow('Invalid address format. Must be a 0x-prefixed 40-character hex string');
@@ -154,7 +166,8 @@ describe('Validation Functions - Additional Coverage', () => {
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
         privateKey: '0x' + 'a'.repeat(64),
-        address: '0x742D4C2a3A7A40D52fE50000a3B25F3E1A652fE7abc'  // Too long
+        address: '0x742D4C2a3A7A40D52fE50000a3B25F3E1A652fE7abc',  // Too long
+        ...requiredExternalServices
       };
 
       expect(() => validateConfig(invalidConfig)).toThrow('Invalid address format. Must be a 0x-prefixed 40-character hex string');
@@ -165,7 +178,8 @@ describe('Validation Functions - Additional Coverage', () => {
         dlpName: 'Test DAO',
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
-        privateKey: '0x' + 'a'.repeat(64)
+        privateKey: '0x' + 'a'.repeat(64),
+        ...requiredExternalServices
         // No address field - should be fine
       };
 
@@ -188,7 +202,8 @@ describe('Validation Functions - Additional Coverage', () => {
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
         privateKey: '0x' + 'a'.repeat(64),
-        publicKey: '04abc123def456789...'  // Missing 0x prefix
+        publicKey: '04abc123def456789...',  // Missing 0x prefix
+        ...requiredExternalServices
       };
 
       expect(() => validateConfig(invalidConfig)).toThrow('Invalid public key format. Must be a 0x-prefixed hex string');
@@ -200,7 +215,8 @@ describe('Validation Functions - Additional Coverage', () => {
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
         privateKey: '0x' + 'a'.repeat(64),
-        publicKey: '0x04abc123def456789...'  // Valid format
+        publicKey: '0x04abc123def456789...',  // Valid format
+        ...requiredExternalServices
       };
 
       expect(() => validateConfig(validConfig)).not.toThrow();
@@ -212,7 +228,8 @@ describe('Validation Functions - Additional Coverage', () => {
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
         privateKey: '0x' + 'a'.repeat(64),
-        publicKey: 'abc123def456789...'  // Missing 0x prefix
+        publicKey: 'abc123def456789...',  // Missing 0x prefix
+        ...requiredExternalServices
       };
 
       expect(() => validateConfig(invalidConfig)).toThrow('Invalid public key format. Must be a 0x-prefixed hex string');
@@ -223,7 +240,8 @@ describe('Validation Functions - Additional Coverage', () => {
         dlpName: 'Test DAO',
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
-        privateKey: '0x' + 'a'.repeat(64)
+        privateKey: '0x' + 'a'.repeat(64),
+        ...requiredExternalServices
         // No publicKey field - should be fine
       };
 
@@ -237,7 +255,90 @@ describe('Validation Functions - Additional Coverage', () => {
         tokenName: 'Test Token',
         tokenSymbol: 'TEST',
         privateKey: '0x' + 'a'.repeat(64),
-        publicKey: '0x04'  // Short but valid format
+        publicKey: '0x04',  // Short but valid format
+        ...requiredExternalServices
+      };
+
+      expect(() => validateConfig(validConfig)).not.toThrow();
+    });
+  });
+
+  describe('validateConfig - external services validation', () => {
+    beforeEach(() => {
+      // Mock successful wallet derivation for valid private key tests
+      deriveWalletFromPrivateKey.mockReturnValue({
+        address: '0x742D4C2a3A7A40D52fE50000a3B25F3E1A652fE7',
+        publicKey: '0x04abc123...'
+      });
+    });
+
+    test('requires pinataApiKey field', () => {
+      const configWithoutPinataKey = {
+        dlpName: 'Test DAO',
+        tokenName: 'Test Token',
+        tokenSymbol: 'TEST',
+        privateKey: '0x' + 'a'.repeat(64),
+        pinataApiSecret: 'test-secret',
+        googleClientId: 'test-client-id',
+        googleClientSecret: 'test-client-secret'
+        // Missing pinataApiKey
+      };
+
+      expect(() => validateConfig(configWithoutPinataKey)).toThrow('Missing required field: pinataApiKey');
+    });
+
+    test('requires pinataApiSecret field', () => {
+      const configWithoutPinataSecret = {
+        dlpName: 'Test DAO',
+        tokenName: 'Test Token',
+        tokenSymbol: 'TEST',
+        privateKey: '0x' + 'a'.repeat(64),
+        pinataApiKey: 'test-key',
+        googleClientId: 'test-client-id',
+        googleClientSecret: 'test-client-secret'
+        // Missing pinataApiSecret
+      };
+
+      expect(() => validateConfig(configWithoutPinataSecret)).toThrow('Missing required field: pinataApiSecret');
+    });
+
+    test('requires googleClientId field', () => {
+      const configWithoutGoogleId = {
+        dlpName: 'Test DAO',
+        tokenName: 'Test Token',
+        tokenSymbol: 'TEST',
+        privateKey: '0x' + 'a'.repeat(64),
+        pinataApiKey: 'test-key',
+        pinataApiSecret: 'test-secret',
+        googleClientSecret: 'test-client-secret'
+        // Missing googleClientId
+      };
+
+      expect(() => validateConfig(configWithoutGoogleId)).toThrow('Missing required field: googleClientId');
+    });
+
+    test('requires googleClientSecret field', () => {
+      const configWithoutGoogleSecret = {
+        dlpName: 'Test DAO',
+        tokenName: 'Test Token',
+        tokenSymbol: 'TEST',
+        privateKey: '0x' + 'a'.repeat(64),
+        pinataApiKey: 'test-key',
+        pinataApiSecret: 'test-secret',
+        googleClientId: 'test-client-id'
+        // Missing googleClientSecret
+      };
+
+      expect(() => validateConfig(configWithoutGoogleSecret)).toThrow('Missing required field: googleClientSecret');
+    });
+
+    test('accepts config with all required external services', () => {
+      const validConfig = {
+        dlpName: 'Test DAO',
+        tokenName: 'Test Token',
+        tokenSymbol: 'TEST',
+        privateKey: '0x' + 'a'.repeat(64),
+        ...requiredExternalServices
       };
 
       expect(() => validateConfig(validConfig)).not.toThrow();

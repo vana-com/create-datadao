@@ -22,7 +22,8 @@ jest.mock('chalk', () => ({
   green: jest.fn(text => text),
   yellow: jest.fn(text => text),
   red: jest.fn(text => text),
-  cyan: jest.fn(text => text)
+  cyan: jest.fn(text => text),
+  gray: jest.fn(text => text)
 }));
 
 jest.mock('../../lib/wallet', () => ({
@@ -160,6 +161,10 @@ describe('Configuration Functions - Comprehensive Tests', () => {
         privateKey: 'invalid-key',
         address: '0x1234567890123456789012345678901234567890',
         publicKey: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef',
+        pinataApiKey: 'test-pinata-key',
+        pinataApiSecret: 'test-pinata-secret',
+        googleClientId: 'test-client-id.apps.googleusercontent.com',
+        googleClientSecret: 'test-client-secret',
         githubUsername: 'testuser',
         network: 'moksha',
         rpcUrl: 'https://rpc.moksha.vana.org',
@@ -258,10 +263,10 @@ describe('Configuration Functions - Comprehensive Tests', () => {
           privateKey: '3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51'
         })
         .mockResolvedValueOnce({
-          pinataApiKey: '',
-          pinataApiSecret: '',
-          googleClientId: '',
-          googleClientSecret: ''
+          pinataApiKey: 'test-pinata-key',
+          pinataApiSecret: 'test-pinata-secret',
+          googleClientId: 'test-google-id',
+          googleClientSecret: 'test-google-secret'
         })
         .mockResolvedValueOnce({
           githubUsername: 'testuser'
@@ -295,10 +300,10 @@ describe('Configuration Functions - Comprehensive Tests', () => {
           privateKey: '3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51'
         })
         .mockResolvedValueOnce({
-          pinataApiKey: '',
-          pinataApiSecret: '',
-          googleClientId: '',
-          googleClientSecret: ''
+          pinataApiKey: 'test-pinata-key',
+          pinataApiSecret: 'test-pinata-secret',
+          googleClientId: 'test-google-id',
+          googleClientSecret: 'test-google-secret'
         })
         .mockResolvedValueOnce({
           githubUsername: 'testuser'
@@ -332,10 +337,10 @@ describe('Configuration Functions - Comprehensive Tests', () => {
           privateKey: '3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51'
         })
         .mockResolvedValueOnce({
-          pinataApiKey: '',
-          pinataApiSecret: '',
-          googleClientId: '',
-          googleClientSecret: ''
+          pinataApiKey: 'test-pinata-key',
+          pinataApiSecret: 'test-pinata-secret',
+          googleClientId: 'test-google-id',
+          googleClientSecret: 'test-google-secret'
         })
         .mockResolvedValueOnce({
           githubUsername: 'testuser'
@@ -369,10 +374,10 @@ describe('Configuration Functions - Comprehensive Tests', () => {
           privateKey: '3f572ac0f0671db5231100918c22296306be0ed77d4353f80ad8b4ea9317cf51'
         })
         .mockResolvedValueOnce({
-          pinataApiKey: '',
-          pinataApiSecret: '',
-          googleClientId: '',
-          googleClientSecret: ''
+          pinataApiKey: 'test-pinata-key',
+          pinataApiSecret: 'test-pinata-secret',
+          googleClientId: 'test-google-id',
+          googleClientSecret: 'test-google-secret'
         })
         .mockResolvedValueOnce({
           githubUsername: 'testuser'

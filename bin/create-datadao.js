@@ -13,6 +13,7 @@ const { validateConfig } = require('../lib/validation');
 const { deriveWalletFromPrivateKey } = require('../lib/wallet');
 const { formatDataDAOName, formatTokenName, formatTokenSymbol } = require('../lib/formatting');
 const { generatePrivateKey, privateKeyToAccount } = require('viem/accounts');
+const { checkPrerequisites } = require('../lib/prerequisites');
 const { program } = require('commander');
 
 // Define CLI command
@@ -362,6 +363,12 @@ async function createDataDAO(projectName, options = {}) {
   console.log(chalk.blue('🚀 Welcome to DataDAO Creator!'));
   console.log();
 
+  // Check prerequisites before starting
+  const prerequisitesPassed = await checkPrerequisites();
+  if (!prerequisitesPassed) {
+    process.exit(1);
+  }
+
   // Load configuration from file if provided
   let config = null;
   if (options.config) {
@@ -407,11 +414,11 @@ async function createDataDAO(projectName, options = {}) {
     console.log();
     console.log(chalk.blue('🎯 Setup Mode Selection:'));
     console.log();
-    console.log(chalk.cyan('Quick Setup (5 minutes):'));
+    console.log(chalk.cyan('Quick Setup (10 minutes):'));
     console.log('  • Auto-generates wallet');
     console.log('  • Uses smart defaults');
-    console.log('  • Skips external services (Pinata, Google OAuth)');
-    console.log('  • Perfect for testing and development');
+    console.log('  • Minimal prompts for required services');
+    console.log('  • Streamlined for faster deployment');
     console.log();
     console.log(chalk.cyan('Full Setup (30-45 minutes):'));
     console.log('  • Complete configuration');
@@ -426,7 +433,7 @@ async function createDataDAO(projectName, options = {}) {
         name: 'setupMode',
         message: 'Which setup mode would you prefer?',
         choices: [
-          { name: '⚡ Quick Setup - Get started in 5 minutes', value: 'quick' },
+          { name: '⚡ Quick Setup - Get started in 10 minutes', value: 'quick' },
           { name: '🔧 Full Setup - Complete configuration', value: 'full' }
         ],
         default: 'quick'
@@ -591,25 +598,17 @@ async function createDataDAO(projectName, options = {}) {
 }
 
 /**
- * Quick DataDAO creation with minimal prompts
+ * Quick setup flow with minimal prompts
  */
 async function createDataDAOQuick(projectName) {
-  console.log(chalk.blue.bold('🚀 Quick Setup Mode'));
-  console.log(chalk.gray('Creating DataDAO with smart defaults...'));
+  console.log(chalk.blue('⚡ Quick Setup Mode'));
+  console.log(chalk.gray('Auto-generating wallet and using smart defaults...'));
   console.log();
 
-  // Get project name if not provided
-  if (!projectName) {
-    const { name } = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'name',
-        message: 'DataDAO project name:',
-        default: 'my-datadao',
-        validate: (input) => input.trim() !== '' || 'Project name is required'
-      }
-    ]);
-    projectName = name;
+  // Check prerequisites before starting
+  const prerequisitesPassed = await checkPrerequisites();
+  if (!prerequisitesPassed) {
+    process.exit(1);
   }
 
   const targetDir = path.resolve(projectName);
@@ -632,11 +631,38 @@ async function createDataDAOQuick(projectName) {
     console.log(chalk.yellow('   ⚠️  Save this private key securely!'));
     console.log();
 
-    // Collect minimal required info for GitHub automation
-    console.log(chalk.blue('🐙 GitHub Integration'));
-    console.log('GitHub username needed for repository setup...');
+    // Collect required external services
+    console.log(chalk.blue('🔐 Required Services Setup'));
+    console.log(chalk.yellow('These services are required for data collection and storage:'));
+    console.log(chalk.gray('• Pinata: Sign up at https://pinata.cloud'));
+    console.log(chalk.gray('• Google OAuth: Create credentials at https://console.cloud.google.com'));
+    console.log();
 
-    const { githubUsername } = await inquirer.prompt([
+    const servicesConfig = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'pinataApiKey',
+        message: 'Pinata API Key:',
+        validate: input => input.trim().length > 0 ? true : 'Pinata API Key is required for IPFS storage'
+      },
+      {
+        type: 'password',
+        name: 'pinataApiSecret',
+        message: 'Pinata API Secret:',
+        validate: input => input.trim().length > 0 ? true : 'Pinata API Secret is required for IPFS storage'
+      },
+      {
+        type: 'input',
+        name: 'googleClientId',
+        message: 'Google OAuth Client ID:',
+        validate: input => input.trim().length > 0 ? true : 'Google Client ID is required for user authentication'
+      },
+      {
+        type: 'password',
+        name: 'googleClientSecret',
+        message: 'Google OAuth Client Secret:',
+        validate: input => input.trim().length > 0 ? true : 'Google Client Secret is required for user authentication'
+      },
       {
         type: 'input',
         name: 'githubUsername',
@@ -652,11 +678,11 @@ async function createDataDAOQuick(projectName) {
       tokenName: formatTokenName(projectName),
       tokenSymbol: formatTokenSymbol(projectName),
       ...wallet,
-      githubUsername,
-      pinataApiKey: null,   // Defer until needed
-      pinataApiSecret: null, // Defer until needed
-      googleClientId: null,  // Defer until needed
-      googleClientSecret: null, // Defer until needed
+      githubUsername: servicesConfig.githubUsername,
+      pinataApiKey: servicesConfig.pinataApiKey,
+      pinataApiSecret: servicesConfig.pinataApiSecret,
+      googleClientId: servicesConfig.googleClientId,
+      googleClientSecret: servicesConfig.googleClientSecret,
       network: 'moksha',
       rpcUrl: 'https://rpc.moksha.vana.org',
       chainId: 14800,

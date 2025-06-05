@@ -54,12 +54,12 @@ describe.skip('Quick Mode Integration', () => {
       expect(deployment.privateKey).toMatch(/^0x[a-fA-F0-9]{64}$/);
       expect(deployment.publicKey).toMatch(/^0x[a-fA-F0-9]+$/);
       
-      // Should not have optional services (deferred)
-      expect(deployment.githubUsername).toBeNull();
-      expect(deployment.pinataApiKey).toBeNull();
-      expect(deployment.pinataApiSecret).toBeNull();
-      expect(deployment.googleClientId).toBeNull();
-      expect(deployment.googleClientSecret).toBeNull();
+      // Should have required external services populated
+      expect(deployment.githubUsername).toBeTruthy();
+      expect(deployment.pinataApiKey).toBeTruthy();
+      expect(deployment.pinataApiSecret).toBeTruthy();
+      expect(deployment.googleClientId).toBeTruthy();
+      expect(deployment.googleClientSecret).toBeTruthy();
       
       // Should contain wallet instructions in output
       expect(stdout).toContain('Generated wallet:');

@@ -270,7 +270,7 @@ async function updateCredentials(stateManager) {
     case 'view':
       output.summary('Current Configuration', [
         { label: 'Pinata API Key', value: stateManager.state.pinataApiKey ? '***' + stateManager.state.pinataApiKey.slice(-4) : 'Not set' },
-        { label: 'Google Client ID', value: stateManager.state.googleClientId || 'Not set' },
+        { label: 'Google Client ID', value: stateManager.state.googleClientId ? `${stateManager.state.googleClientId.slice(0, 20)}...` : 'Missing (required)' },
         { label: 'Wallet Address', value: stateManager.state.address || 'Not set' }
       ]);
       break;

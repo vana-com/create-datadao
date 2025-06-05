@@ -114,23 +114,19 @@ async function deployUI() {
     uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_NETWORK_RPC_URL', 'https://rpc.moksha.vana.org');
     uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_NETWORK_CHAIN_ID', '14800');
 
-    // Add Pinata credentials if available
-    if (deployment.pinataApiKey && deployment.pinataApiSecret) {
-      uiEnv = updateEnvVar(uiEnv, 'PINATA_API_KEY', deployment.pinataApiKey);
-      uiEnv = updateEnvVar(uiEnv, 'PINATA_API_SECRET', deployment.pinataApiSecret);
-    } else {
-      console.log(chalk.yellow('⚠ Pinata credentials not found in deployment.json'));
-      console.log(chalk.yellow('  You may need to add them manually to ui/.env'));
+    // Add Pinata credentials (required)
+    if (!deployment.pinataApiKey || !deployment.pinataApiSecret) {
+      throw new Error('Missing required Pinata credentials in deployment.json. Pinata API key and secret are required for IPFS functionality.');
     }
+    uiEnv = updateEnvVar(uiEnv, 'PINATA_API_KEY', deployment.pinataApiKey);
+    uiEnv = updateEnvVar(uiEnv, 'PINATA_API_SECRET', deployment.pinataApiSecret);
 
-    // Add Google OAuth credentials if available
-    if (deployment.googleClientId && deployment.googleClientSecret) {
-      uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_ID', deployment.googleClientId);
-      uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_SECRET', deployment.googleClientSecret);
-    } else {
-      console.log(chalk.yellow('⚠ Google OAuth credentials not found in deployment.json'));
-      console.log(chalk.yellow('  You may need to set up Google OAuth and add them manually to ui/.env'));
+    // Add Google OAuth credentials (required)
+    if (!deployment.googleClientId || !deployment.googleClientSecret) {
+      throw new Error('Missing required Google OAuth credentials in deployment.json. Google Client ID and secret are required for user authentication.');
     }
+    uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_ID', deployment.googleClientId);
+    uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_SECRET', deployment.googleClientSecret);
 
     // Write updated .env file
     fs.writeFileSync(uiEnvPath, uiEnv.trim() + '\n');

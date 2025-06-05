@@ -3,7 +3,7 @@
  * Tests actual blockchain logic and error handling without excessive mocking
  */
 
-const { 
+const {
   pollEncryptionKey,
   getDlpId,
   extractRefinerIdFromLogs,
@@ -16,7 +16,7 @@ jest.mock('viem', () => {
     readContract: jest.fn(),
     getTransactionReceipt: jest.fn()
   };
-  
+
   return {
     createPublicClient: jest.fn(() => mockClient),
     http: jest.fn(),
@@ -46,7 +46,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers('modern');
-    
+
     // Mock console to reduce test noise
     consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   });
@@ -84,7 +84,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
 
       // Advance timers to trigger the retry (30 second timeout)
       await jest.advanceTimersByTimeAsync(30000);
-      
+
       const result = await pollPromise;
 
       expect(result).toBe(expectedKey);
@@ -96,7 +96,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
 
       // Use a very small maxAttempts to avoid long waits
       const pollPromise = pollEncryptionKey(789, 1); // Only 1 attempt
-      
+
       // No need to advance timers - with 1 attempt it fails immediately
       await expect(pollPromise).rejects.toThrow(
         'Encryption key not available after 30 minutes. Please check your dlpId or try again later.'
@@ -113,7 +113,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
 
       // Advance timers to trigger the retry
       await jest.advanceTimersByTimeAsync(30000);
-      
+
       const result = await pollPromise;
 
       expect(result).toBe(expectedKey);
@@ -160,7 +160,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
       const mockNewClient = {
         getTransactionReceipt: jest.fn()
       };
-      
+
       const mockReceipt = {
         logs: [
           {
@@ -172,7 +172,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
           }
         ]
       };
-      
+
       // Mock createPublicClient to return our new mock client for this test
       viem.createPublicClient.mockReturnValueOnce(mockNewClient);
       mockNewClient.getTransactionReceipt.mockResolvedValue(mockReceipt);
@@ -186,7 +186,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
       const mockNewClient = {
         getTransactionReceipt: jest.fn()
       };
-      
+
       const mockReceipt = {
         logs: [
           {
@@ -198,7 +198,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
           }
         ]
       };
-      
+
       viem.createPublicClient.mockReturnValueOnce(mockNewClient);
       mockNewClient.getTransactionReceipt.mockResolvedValue(mockReceipt);
 
@@ -211,7 +211,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
       const mockNewClient = {
         getTransactionReceipt: jest.fn()
       };
-      
+
       viem.createPublicClient.mockReturnValueOnce(mockNewClient);
       mockNewClient.getTransactionReceipt.mockRejectedValue(new Error('Transaction not found'));
 
@@ -226,7 +226,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
       expect(typeof waitForRefinerRegistration).toBe('function');
     });
 
-    // NOTE: These tests are skipped because waitForRefinerRegistration uses Date.now() 
+    // NOTE: These tests are skipped because waitForRefinerRegistration uses Date.now()
     // in a while loop which doesn't work well with Jest's fake timers.
     // The function should be refactored to accept a time provider for better testability.
     test('handles successful refiner id extraction', async () => {
@@ -238,7 +238,7 @@ describe('Blockchain Functions - Real Logic Tests', () => {
           data: 'RefinerAdded'
         }]
       });
-      
+
       viem.createPublicClient.mockReturnValue({
         getTransactionReceipt: mockGetTransactionReceipt
       });
@@ -249,10 +249,14 @@ describe('Blockchain Functions - Real Logic Tests', () => {
       expect(mockGetTransactionReceipt).toHaveBeenCalledWith({ hash: '0xabc123' });
     });
 
-    test.skip('handles timeout scenario - timer complexity', async () => {
-      // This test requires complex timer mocking because waitForRefinerRegistration uses both
-      // Date.now() for time tracking and setTimeout for delays, making it difficult to test
-      // The function works correctly in production but needs refactoring for better testability
+    test.skip('handles timeout scenario - complex async pattern', async () => {
+      // RESEARCH FINDINGS: Same complex Date.now() + setTimeout pattern as in blockchain-real.test.js
+      // According to Jest Timer Mocks documentation and Medium articles:
+      // - Complex async/await + setTimeout patterns require code refactoring for proper testability
+      // - The while loop with Date.now() condition doesn't work well with Jest's fake timers
+      // - Developers often refactor these patterns or test them at integration level
+      //
+      // SOLUTION: Refactor waitForRefinerRegistration to use dependency injection for timer functions
     });
   });
 });

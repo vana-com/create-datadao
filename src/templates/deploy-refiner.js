@@ -488,26 +488,26 @@ async function deployRefiner() {
             const pinataApiKey = envContent.match(/PINATA_API_KEY=(.+)/)?.[1];
             const pinataApiSecret = envContent.match(/PINATA_API_SECRET=(.+)/)?.[1];
 
-            if (pinataApiKey && pinataApiSecret) {
-              // Upload to Pinata using curl (simple approach)
-              const uploadCmd = `curl -X POST "https://api.pinata.cloud/pinning/pinFileToIPFS" \
-                -H "pinata_api_key: ${pinataApiKey}" \
-                -H "pinata_secret_api_key: ${pinataApiSecret}" \
-                -F "file=@${schemaPath}" \
-                -F 'pinataMetadata={"name":"${deployment.dlpName}-schema.json"}'`;
+            if (!pinataApiKey || !pinataApiSecret) {
+              throw new Error('Pinata credentials not found in .env. Pinata API key and secret are required for IPFS uploads.');
+            }
 
-              const result = execSync(uploadCmd, { encoding: 'utf8' });
-              const response = JSON.parse(result);
+            // Upload to Pinata using curl (simple approach)
+            const uploadCmd = `curl -X POST "https://api.pinata.cloud/pinning/pinFileToIPFS" \
+              -H "pinata_api_key: ${pinataApiKey}" \
+              -H "pinata_secret_api_key: ${pinataApiSecret}" \
+              -F "file=@${schemaPath}" \
+              -F 'pinataMetadata={"name":"${deployment.dlpName}-schema.json"}'`;
 
-              if (response.IpfsHash) {
-                schemaUrl = `https://gateway.pinata.cloud/ipfs/${response.IpfsHash}`;
-                console.log(chalk.green('✅ Schema uploaded to IPFS successfully!'));
-                console.log(chalk.cyan('Schema URL:'), schemaUrl);
-              } else {
-                throw new Error('Failed to get IPFS hash from Pinata response');
-              }
+            const result = execSync(uploadCmd, { encoding: 'utf8' });
+            const response = JSON.parse(result);
+
+            if (response.IpfsHash) {
+              schemaUrl = `https://gateway.pinata.cloud/ipfs/${response.IpfsHash}`;
+              console.log(chalk.green('✅ Schema uploaded to IPFS successfully!'));
+              console.log(chalk.cyan('Schema URL:'), schemaUrl);
             } else {
-              throw new Error('Pinata credentials not found in .env');
+              throw new Error('Failed to get IPFS hash from Pinata response');
             }
           } catch (error) {
             console.log(chalk.yellow('⚠️  Automatic IPFS upload failed:', error.message));

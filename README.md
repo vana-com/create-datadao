@@ -45,12 +45,12 @@ Follow the prompts. You'll have a DataDAO deployed in ~15 minutes.
 
 ## Prerequisites
 
+**Required:**
 - Node.js 18+
-- A funded wallet (~10 VANA for deployment + registration)
 - GitHub account (for proof/refiner repos)
-- Google OAuth credentials (for UI authentication)
-
-Get testnet VANA: https://faucet.vana.org
+- Pinata account for IPFS storage (https://pinata.cloud)
+- Google OAuth credentials (https://console.cloud.google.com)
+- GitHub CLI for automated repository setup (https://cli.github.com)
 
 ## Installation
 
