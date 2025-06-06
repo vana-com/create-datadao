@@ -266,22 +266,262 @@ GOOGLE_CLIENT_SECRET=your-secret
 
 ## Contributing
 
-Pull requests welcome. For major changes, please open an issue first.
+We welcome contributions! Whether you're fixing bugs, adding features, or improving documentation, your help makes this project better.
 
-### Development
+### Getting Started
 
-```bash
-git clone https://github.com/vana-com/create-datadao
-cd create-datadao
-npm install
-npm link  # Test locally
+#### Prerequisites for Development
+- Node.js 18+ and npm
+- Git and GitHub account
+- GitHub CLI (recommended): `brew install gh` or `npm install -g @github/cli`
+- Basic familiarity with CLI tools and Node.js
+
+#### Development Setup
+
+1. **Fork and Clone**
+   ```bash
+   # Fork the repository on GitHub first, then:
+   git clone https://github.com/YOUR_USERNAME/create-datadao
+   cd create-datadao
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Link for Local Testing**
+   ```bash
+   npm link
+   # Now you can test with: create-datadao create test-project
+   ```
+
+4. **Verify Setup**
+   ```bash
+   # Test the CLI works
+   create-datadao --help
+   
+   # Run the test suite
+   npm test
+   ```
+
+### Project Structure
+
+```
+create-datadao/
+├── bin/
+│   └── create-datadao.js          # CLI entry point
+├── lib/
+│   ├── generator.js               # Project template generation
+│   ├── config.js                  # Configuration management
+│   ├── wallet.js                  # Blockchain wallet utilities
+│   ├── validation.js              # Input validation
+│   └── formatting.js              # String formatting helpers
+├── src/
+│   ├── index.js                   # Core generator logic
+│   └── templates/                 # Script templates for generated projects
+├── __tests__/
+│   ├── lib/                       # Unit tests
+│   ├── integration/               # Integration tests
+│   └── production/                # End-to-end tests
+└── package.json
 ```
 
-### Running Tests
+### Testing
+
+We use Jest for testing with multiple test suites:
 
 ```bash
+# Run all tests
 npm test
+
+# Unit tests only (fast)
+npm run test:unit
+
+# Integration tests (medium speed)
+npm run test:integration
+
+# Production tests (slow, requires network)
+npm run test:production
+
+# Watch mode for development
+npm run test:watch
+
+# Coverage report
+npm run test:coverage
 ```
+
+#### Testing Your Changes
+
+1. **Unit Tests**: Test individual functions in isolation
+   ```bash
+   npm run test:unit
+   ```
+
+2. **Integration Tests**: Test CLI commands end-to-end
+   ```bash
+   npm run test:integration
+   ```
+
+3. **Manual Testing**: Test the full user experience
+   ```bash
+   create-datadao create test-dao
+   create-datadao status test-dao
+   ```
+
+### Making Changes
+
+#### Code Style
+- Use consistent formatting (we recommend Prettier)
+- Follow existing naming conventions
+- Add JSDoc comments for public functions
+- Keep functions focused and testable
+
+#### Adding Features
+
+1. **Create a branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Write tests first** (TDD approach recommended)
+   ```bash
+   # Add tests in __tests__/lib/ for new utilities
+   # Add integration tests in __tests__/integration/
+   ```
+
+3. **Implement the feature**
+   - Follow existing patterns in the codebase
+   - Update CLI help text if adding commands
+   - Update README if user-facing
+
+4. **Test thoroughly**
+   ```bash
+   npm test
+   npm run test:coverage  # Ensure good coverage
+   ```
+
+#### Bug Fixes
+
+1. **Reproduce the bug** with a test case
+2. **Fix the issue** while keeping tests passing
+3. **Add regression tests** to prevent future occurrences
+
+### Submitting Changes
+
+#### Pull Request Process
+
+1. **Ensure tests pass**
+   ```bash
+   npm test
+   ```
+
+2. **Update documentation** if needed
+   - README.md for user-facing changes
+   - JSDoc comments for code changes
+   - Add examples for new features
+
+3. **Create Pull Request**
+   - Use a clear, descriptive title
+   - Reference any related issues
+   - Describe what changed and why
+   - Include testing instructions
+
+4. **PR Template**
+   ```markdown
+   ## What Changed
+   Brief description of your changes
+
+   ## Why
+   Explanation of the problem this solves
+
+   ## Testing
+   - [ ] Unit tests pass
+   - [ ] Integration tests pass
+   - [ ] Manually tested with: `create-datadao create test-project`
+
+   ## Checklist
+   - [ ] Documentation updated
+   - [ ] Tests added/updated
+   - [ ] No breaking changes (or clearly marked)
+   ```
+
+### Reporting Issues
+
+#### Bug Reports
+Include:
+- **Steps to reproduce**
+- **Expected vs actual behavior**
+- **Environment details** (Node version, OS)
+- **CLI command and output**
+- **Error logs** if any
+
+#### Feature Requests
+Include:
+- **Use case description**
+- **Proposed solution**
+- **Alternative approaches considered**
+- **Willingness to implement**
+
+### Development Tips
+
+#### Testing Changes Locally
+
+```bash
+# Link your development version
+npm link
+
+# Test create command
+create-datadao create test-project
+
+# Test status command
+create-datadao status test-project
+
+# Clean up test projects
+rm -rf test-project
+
+# Unlink when done
+npm unlink -g create-datadao
+```
+
+#### Debugging
+
+```bash
+# Add debug logs to your code
+console.log(chalk.gray('DEBUG:'), 'variable value:', variable);
+
+# Run with verbose output
+DEBUG=* create-datadao create test-project
+```
+
+#### Common Gotchas
+
+- **File paths**: Use `path.join()` for cross-platform compatibility
+- **Async operations**: Always handle Promise rejections
+- **User input**: Validate and sanitize all inputs
+- **Error messages**: Make them actionable and user-friendly
+
+### Release Process
+
+We use semantic-release for automated releases:
+- **fix**: Patch version (0.0.1)
+- **feat**: Minor version (0.1.0)  
+- **BREAKING CHANGE**: Major version (1.0.0)
+
+Use conventional commits:
+```bash
+git commit -m "feat: add support for custom templates"
+git commit -m "fix: resolve Windows path issues"
+git commit -m "docs: update installation instructions"
+```
+
+### Need Help?
+
+- **Questions**: Open a discussion on GitHub
+- **Chat**: Join our Discord community
+- **Issues**: Search existing issues before creating new ones
+
+Thank you for contributing to create-datadao! 🚀
 
 ## License
 
