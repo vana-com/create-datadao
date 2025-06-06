@@ -132,7 +132,7 @@ DLP_NAME=${config.dlpName}
 DLP_PUBLIC_KEY=${config.publicKey}
 DLP_TOKEN_NAME=${config.tokenName}
 DLP_TOKEN_SYMBOL=${config.tokenSymbol}
-DLP_TOKEN_SALT=${config.tokenSymbol}
+DLP_TOKEN_SALT=${config.tokenSymbol}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}
 `;
 
   fs.writeFileSync(path.join(process.cwd(), 'contracts', '.env'), contractsEnv);

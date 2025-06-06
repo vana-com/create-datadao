@@ -17,6 +17,13 @@ const DLP_REGISTRY_ABI = [
     "type": "function"
   },
   {
+    "inputs": [{"internalType": "string", "name": "dlpName", "type": "string"}],
+    "name": "dlpNameToId",
+    "outputs": [{"internalType": "uint256", "name": "dlpId", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "components": [
@@ -67,6 +74,57 @@ const DLP_REGISTRY_ABI = [
     "type": "function"
   }
 ];
+
+/**
+ * Attempt to decode error signature via openchain API
+ */
+async function decodeErrorSignature(signature) {
+  try {
+    // Try openchain.xyz API for signature lookup
+    const response = await fetch(`https://api.openchain.xyz/signature-database/v1/lookup?function=${signature}&filter=true`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.result && data.result.function && data.result.function.length > 0) {
+        const decoded = data.result.function[0].name;
+        return `${decoded}`;
+      }
+    }
+  } catch (error) {
+    // Fallback silently if API fails
+  }
+
+  // Fallback: try to extract from viem error if possible
+  return `Unknown error signature: ${signature}`;
+}
+
+/**
+ * Check if DLP name is already taken
+ */
+async function checkDlpNameAvailability(dlpName) {
+  const client = createPublicClient({
+    chain: moksha,
+    transport: http('{{MOKSHA_RPC_URL}}')
+  });
+
+  try {
+    const dlpId = await client.readContract({
+      address: DLP_REGISTRY_ADDRESS,
+      abi: DLP_REGISTRY_ABI,
+      functionName: 'dlpNameToId',
+      args: [dlpName]
+    });
+
+    const nameExists = Number(dlpId) > 0;
+    return {
+      available: !nameExists,
+      existingId: nameExists ? Number(dlpId) : null
+    };
+  } catch (error) {
+    console.warn(chalk.yellow(`⚠️  Could not check name availability: ${error.message}`));
+    return { available: true, existingId: null }; // Assume available if check fails
+  }
+}
 
 /**
  * Get dlpId from the registry automatically
@@ -138,7 +196,7 @@ async function performAutomatedRegistration(deployment, quickMode = false) {
   const contractsEnvPath = path.join(process.cwd(), 'contracts', '.env');
   if (!fs.existsSync(contractsEnvPath)) {
     console.error(chalk.red('No contracts/.env file found. Cannot access private key.'));
-    return false;
+    throw new Error('No contracts/.env file found. Cannot access private key.');
   }
 
   const envContent = fs.readFileSync(contractsEnvPath, 'utf8');
@@ -146,7 +204,7 @@ async function performAutomatedRegistration(deployment, quickMode = false) {
 
   if (!privateKeyMatch) {
     console.error(chalk.red('No DEPLOYER_PRIVATE_KEY found in contracts/.env'));
-    return false;
+    throw new Error('No DEPLOYER_PRIVATE_KEY found in contracts/.env');
   }
 
   const privateKey = privateKeyMatch[1].trim();
@@ -169,7 +227,7 @@ async function performAutomatedRegistration(deployment, quickMode = false) {
     // Check balance
     const hasBalance = await checkWalletBalance(account.address);
     if (!hasBalance) {
-      return false;
+      throw new Error('Insufficient wallet balance for registration');
     }
 
     // Get the DLP proxy address (supports both old and new format)
@@ -180,7 +238,7 @@ async function performAutomatedRegistration(deployment, quickMode = false) {
     if (!dlpProxyAddress) {
       console.error(chalk.red('❌ DLP proxy address not found in deployment.json'));
       console.error(chalk.yellow('Please ensure contracts are deployed first.'));
-      return false;
+      throw new Error('DLP proxy address not found in deployment.json');
     }
 
     // Prepare registration parameters
@@ -215,7 +273,7 @@ async function performAutomatedRegistration(deployment, quickMode = false) {
 
       if (!confirm) {
         console.log(chalk.yellow('Registration cancelled.'));
-        return false;
+        throw new Error('Registration cancelled by user');
       }
     }
 
@@ -270,16 +328,28 @@ async function performAutomatedRegistration(deployment, quickMode = false) {
       } else {
         console.error(chalk.red('Registration transaction succeeded but could not retrieve dlpId'));
         console.log(chalk.yellow('Please check the transaction and try querying dlpId manually'));
-        return false;
+        throw new Error('Registration transaction succeeded but could not retrieve dlpId');
       }
     } else {
       console.error(chalk.red('❌ Registration transaction failed'));
       console.log(`   Transaction hash: ${hash}`);
-      return false;
+      throw new Error(`Registration transaction failed. Hash: ${hash}`);
     }
 
   } catch (error) {
     console.error(chalk.red('Registration failed:'), error.message);
+
+    // Try to decode error signature
+    const signatureMatch = error.message.match(/0x[0-9a-fA-F]{8}/);
+    if (signatureMatch) {
+      const signature = signatureMatch[0];
+      try {
+        const decodedError = await decodeErrorSignature(signature);
+        console.error(chalk.yellow(`\n💡 Decoded error: ${decodedError}`));
+      } catch (decodeError) {
+        console.error(chalk.yellow(`\n💡 Error signature: ${signature} (could not decode)`));
+      }
+    }
 
     // Comprehensive error analysis
     const errorLower = error.message.toLowerCase();
@@ -302,12 +372,15 @@ async function performAutomatedRegistration(deployment, quickMode = false) {
         'No action needed - you cancelled the transaction',
         'Retry when ready: npm run register:datadao'
       ];
-    } else if (errorLower.includes('already registered') || errorLower.includes('dlp exists')) {
-      console.error(chalk.yellow('\n💡 DataDAO may already be registered'));
+    } else if (errorLower.includes('already registered') || errorLower.includes('dlp exists') || 
+               errorLower.includes('invalidname') || errorLower.includes('name') && errorLower.includes('taken')) {
+      console.error(chalk.yellow('\n💡 DataDAO name conflict detected'));
       recoverySteps = [
         'Check registration on Vanascan: https://moksha.vanascan.io/address/' + dlpProxyAddress,
         'If registered, run: npm run status to update local state',
-        'Otherwise, contact support with your DLP address'
+        'Otherwise, check existing DataDAO names: https://moksha.vanascan.io/address/{{DLP_REGISTRY_CONTRACT_ADDRESS}}',
+        'Edit deployment.json and change "dlpName" to something unique',
+        'Retry registration after changing the name'
       ];
     } else if (errorLower.includes('reverted') || errorLower.includes('execution failed')) {
       console.error(chalk.yellow('\n💡 Transaction was reverted by the network'));
@@ -358,7 +431,7 @@ async function performAutomatedRegistration(deployment, quickMode = false) {
     console.error(chalk.white('You can also register manually via Vanascan:'));
     console.error(chalk.blue('https://moksha.vanascan.io/address/{{DLP_REGISTRY_CONTRACT_ADDRESS}}?tab=write_proxy'));
 
-    return false;
+    throw error; // Re-throw the original error
   }
 }
 
@@ -443,13 +516,13 @@ async function performManualRegistration(deployment) {
         console.log('• Double-check all addresses match your deployment.json');
         console.log('• If you get errors, try refreshing the page and reconnecting');
         console.log();
-      } else if (manualAction === 'auto') {
-        console.log(chalk.blue('Switching to automated registration...'));
-        return await performAutomatedRegistration(deployment);
-      } else if (manualAction === 'skip') {
-        console.log(chalk.yellow('Registration skipped. You can register later with: npm run register:datadao'));
-        return false;
-      }
+              } else if (manualAction === 'auto') {
+          console.log(chalk.blue('Switching to automated registration...'));
+          return await performAutomatedRegistration(deployment);
+        } else if (manualAction === 'skip') {
+          console.log(chalk.yellow('Registration skipped. You can register later with: npm run register:datadao'));
+          throw new Error('Registration skipped by user');
+        }
     }
   }
 
@@ -525,10 +598,10 @@ async function performManualRegistration(deployment) {
       } else if (retryAction === 'auto') {
         console.log(chalk.blue('Switching to automated registration...'));
         return await performAutomatedRegistration(deployment);
-      } else if (retryAction === 'skip') {
-        console.log(chalk.yellow('Registration incomplete. You can try again later with: npm run register:datadao'));
-        return false;
-      }
+              } else if (retryAction === 'skip') {
+          console.log(chalk.yellow('Registration incomplete. You can try again later with: npm run register:datadao'));
+          throw new Error('Registration incomplete - skipped by user');
+        }
     }
   }
 
@@ -550,7 +623,7 @@ async function registerDataDAO() {
   const deploymentPath = path.join(process.cwd(), 'deployment.json');
   if (!fs.existsSync(deploymentPath)) {
     console.error(chalk.red('No deployment.json found. Please deploy contracts first.'));
-    return;
+    throw new Error('No deployment.json found. Please deploy contracts first.');
   }
 
   const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
@@ -565,7 +638,7 @@ async function registerDataDAO() {
 
   if (!dlpProxyAddress) {
     console.error(chalk.red('No DLP proxy address found. Please deploy contracts first.'));
-    return;
+    throw new Error('No DLP proxy address found. Please deploy contracts first.');
   }
 
   console.log(chalk.blue('📋 Registration Information:'));
@@ -588,10 +661,40 @@ async function registerDataDAO() {
     console.log();
     console.log(chalk.blue('🎯 Your DataDAO is registered and ready!'));
     console.log('Next: Configure your proof template and refiner');
-    return;
+    return; // Success case - don't throw
   }
 
   console.log(chalk.yellow('⏸️  DataDAO not yet registered'));
+  console.log();
+
+  // Check if the DLP name is already taken BEFORE attempting registration
+  console.log(chalk.blue('🔍 Checking DLP name availability...'));
+  const nameCheck = await checkDlpNameAvailability(deployment.dlpName);
+
+  if (!nameCheck.available) {
+    console.error(chalk.red(`❌ DLP name "${deployment.dlpName}" is already taken (dlpId: ${nameCheck.existingId})`));
+    console.error(chalk.yellow('   You need to choose a different name for your DataDAO.'));
+    console.log();
+
+    recoverySteps = [
+      'Check registration on Vanascan: https://moksha.vanascan.io/address/' + dlpProxyAddress,
+      'If registered, run: npm run status to update local state',
+      'Otherwise, check existing DataDAO names: https://moksha.vanascan.io/address/{{DLP_REGISTRY_CONTRACT_ADDRESS}}',
+      'Edit deployment.json and change "dlpName" to something unique',
+      'Retry registration after changing the name'
+    ];
+
+    // Display recovery steps
+    console.error(chalk.cyan('\n📋 Recovery Steps:'));
+    recoverySteps.forEach((step, index) => {
+      console.error(chalk.white(`${index + 1}. ${step}`));
+    });
+    console.log();
+    
+    throw new Error(`DLP name "${deployment.dlpName}" is already taken (dlpId: ${nameCheck.existingId})`);
+  }
+
+  console.log(chalk.green(`✅ DLP name "${deployment.dlpName}" is available`));
   console.log();
 
   let registrationMethod = 'auto'; // Default to auto
@@ -660,7 +763,7 @@ async function registerDataDAO() {
           console.log();
         } else {
           console.log(chalk.yellow('You can register later with: npm run register:datadao'));
-          return;
+          throw new Error('Registration skipped by user');
         }
       }
     }
@@ -687,10 +790,9 @@ async function registerDataDAO() {
     console.log('• Get the encryption key for your refiner');
     console.log('• Configure your proof-of-contribution logic');
     console.log('• Test the full data contribution flow');
-  } else if (registrationMethod === 'auto') {
-    console.log();
-    console.log(chalk.yellow('⚠️  Automated registration failed'));
-    console.log(chalk.yellow('You can try manual registration or run this script again'));
+  } else {
+    // If registration was not successful, throw an error
+    throw new Error(`${registrationMethod === 'auto' ? 'Automated' : 'Manual'} registration failed`);
   }
 }
 

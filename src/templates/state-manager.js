@@ -311,10 +311,50 @@ class DeploymentStateManager {
   }
 
   /**
-   * Check if a step is completed
+   * Check if a step is completed - looks at both state flags and actual data
    */
   isCompleted(step) {
-    return !!this.state.state[step];
+    // First check the explicit state flag
+    if (this.state.state[step]) {
+      return true;
+    }
+
+    // If state flag is false, check if we have the data that proves completion
+    switch (step) {
+      case 'contractsDeployed':
+        // Check both old and new contract address formats
+        const hasOldFormat = this.state.tokenAddress && this.state.proxyAddress;
+        const hasNewFormat = this.state.contracts && this.state.contracts.tokenAddress && this.state.contracts.proxyAddress;
+        return hasOldFormat || hasNewFormat;
+
+      case 'dataDAORegistered':
+        // If we have a dlpId, registration was successful
+        return !!this.state.dlpId;
+
+      case 'proofGitSetup':
+        // If we have a proof repo URL, GitHub setup was done
+        return !!this.state.proofRepo;
+
+      case 'refinerGitSetup':
+        // If we have a refiner repo URL, GitHub setup was done
+        return !!this.state.refinerRepo;
+
+      case 'proofConfigured':
+        // Check for proof deployment artifacts
+        return !!(this.state.proofUrl || this.state.proofContractAddress);
+
+      case 'refinerConfigured':
+        // Check for refiner deployment artifacts
+        return !!(this.state.refinerId || this.state.refinerContractAddress);
+
+      case 'uiConfigured':
+        // Check if UI environment files exist (this should check filesystem in real implementation)
+        // For now, just use the state flag
+        return !!this.state.state[step];
+
+      default:
+        return !!this.state.state[step];
+    }
   }
 
   /**
@@ -325,6 +365,56 @@ class DeploymentStateManager {
     if (Object.keys(data).length > 0) {
       this.updateDeployment(data);
     }
+  }
+
+  /**
+   * Sync state flags based on actual data present
+   */
+  syncStateFromData() {
+    const updates = {};
+    let hasUpdates = false;
+
+    // Check contracts deployment
+    if (!this.state.state.contractsDeployed && this.isCompleted('contractsDeployed')) {
+      updates.contractsDeployed = true;
+      hasUpdates = true;
+    }
+
+    // Check DataDAO registration
+    if (!this.state.state.dataDAORegistered && this.isCompleted('dataDAORegistered')) {
+      updates.dataDAORegistered = true;
+      hasUpdates = true;
+    }
+
+    // Check GitHub setup
+    if (!this.state.state.proofGitSetup && this.isCompleted('proofGitSetup')) {
+      updates.proofGitSetup = true;
+      hasUpdates = true;
+    }
+
+    if (!this.state.state.refinerGitSetup && this.isCompleted('refinerGitSetup')) {
+      updates.refinerGitSetup = true;
+      hasUpdates = true;
+    }
+
+    // Check proof configuration
+    if (!this.state.state.proofConfigured && this.isCompleted('proofConfigured')) {
+      updates.proofConfigured = true;
+      hasUpdates = true;
+    }
+
+    // Check refiner configuration
+    if (!this.state.state.refinerConfigured && this.isCompleted('refinerConfigured')) {
+      updates.refinerConfigured = true;
+      hasUpdates = true;
+    }
+
+    if (hasUpdates) {
+      this.updateState(updates);
+      return updates;
+    }
+
+    return null;
   }
 
   /**

@@ -13,8 +13,11 @@ const { validateConfig } = require('../lib/validation');
 const { deriveWalletFromPrivateKey } = require('../lib/wallet');
 const { formatDataDAOName, formatTokenName, formatTokenSymbol } = require('../lib/formatting');
 const { generatePrivateKey, privateKeyToAccount } = require('viem/accounts');
+const { createPublicClient, http } = require('viem');
+const { moksha } = require('viem/chains');
 const { checkPrerequisites } = require('../lib/prerequisites');
 const { program } = require('commander');
+const { DLP_REGISTRY_ABI, DLP_REGISTRY_ADDRESS } = require('../lib/blockchain');
 
 // Define CLI command
 program
@@ -65,6 +68,34 @@ program
   .action(async (projectPath) => {
     await runProjectScript(projectPath, 'ui:dev');
   });
+
+/**
+ * Check if DLP name is already taken on the network
+ */
+async function checkDlpNameAvailability(dlpName) {
+  const client = createPublicClient({
+    chain: moksha,
+    transport: http('https://rpc.moksha.vana.org')
+  });
+  const dlpRegistryAddress = DLP_REGISTRY_ADDRESS;
+  try {
+    const dlpId = await client.readContract({
+      address: dlpRegistryAddress, 
+      abi: DLP_REGISTRY_ABI,
+      functionName: 'dlpNameToId',
+      args: [dlpName]
+    });
+
+    const nameExists = Number(dlpId) > 0;
+    return {
+      available: !nameExists,
+      existingId: nameExists ? Number(dlpId) : null
+    };
+  } catch (error) {
+    console.warn(chalk.yellow(`⚠️  Could not check name availability: ${error.message}`));
+    return { available: true, existingId: null }; // Assume available if check fails
+  }
+}
 
 /**
  * Find project directory from current location or provided path
@@ -456,6 +487,37 @@ async function createDataDAO(projectName, options = {}) {
     process.exit(1);
   }
 
+  // EARLY CHECK: Verify DLP name is available BEFORE doing any expensive operations
+  const dlpName = formatDataDAOName(projectName);
+  console.log(chalk.blue('🔍 Checking DataDAO name availability...'));
+  console.log(chalk.gray(`   Checking if "${dlpName}" is already taken...`));
+  
+  const nameCheck = await checkDlpNameAvailability(dlpName);
+  
+  if (!nameCheck.available) {
+    console.log();
+    console.error(chalk.red(`❌ DataDAO name "${dlpName}" is already taken (dlpId: ${nameCheck.existingId})`));
+    console.error(chalk.yellow('   You need to choose a different name for your DataDAO.'));
+    console.log();
+
+    recoverySteps = [
+      `Check existing DataDAO names: https://moksha.vanascan.io/address/${DLP_REGISTRY_ADDRESS}`,
+      'Retry DataDAO creation with a unique DataDAO name'
+    ];
+
+    // Display recovery steps
+    console.error(chalk.cyan('\n📋 Next Steps:'));
+    recoverySteps.forEach((step, index) => {
+      console.error(chalk.white(`${index + 1}. ${step}`));
+    });
+    console.log();
+
+    process.exit(1);
+  } else {
+    console.log(chalk.green('✅ DataDAO name is available!'));
+    console.log();
+  }
+
   try {
     // Collect configuration (use loaded config or prompt user)
     const finalConfig = config ? config : await collectConfiguration(projectName);
@@ -617,6 +679,37 @@ async function createDataDAOQuick(projectName) {
   if (fs.existsSync(targetDir)) {
     console.error(chalk.red(`Directory ${projectName} already exists!`));
     process.exit(1);
+  }
+
+  // EARLY CHECK: Verify DLP name is available BEFORE doing any expensive operations
+  const dlpName = formatDataDAOName(projectName);
+  console.log(chalk.blue('🔍 Checking DataDAO name availability...'));
+  console.log(chalk.gray(`   Checking if "${dlpName}" is already taken...`));
+  
+  const nameCheck = await checkDlpNameAvailability(dlpName);
+  
+  if (!nameCheck.available) {
+    console.log();
+    console.error(chalk.red(`❌ DataDAO name "${dlpName}" is already taken (dlpId: ${nameCheck.existingId})`));
+    console.error(chalk.yellow('   You need to choose a different name for your DataDAO.'));
+    console.log();
+
+    recoverySteps = [
+      `Check existing DataDAO names: https://moksha.vanascan.io/address/${DLP_REGISTRY_ADDRESS}`,
+      'Retry DataDAO creation with a unique DataDAO name'
+    ];
+
+    // Display recovery steps
+    console.error(chalk.cyan('\n📋 Next Steps:'));
+    recoverySteps.forEach((step, index) => {
+      console.error(chalk.white(`${index + 1}. ${step}`));
+    });
+    console.log();
+
+    process.exit(1);
+  } else {
+    console.log(chalk.green('✅ DataDAO name is available!'));
+    console.log();
   }
 
   try {

@@ -11,6 +11,17 @@ const output = require('../lib/output');
 async function showStatus() {
   try {
     const stateManager = new DeploymentStateManager();
+    
+    // Auto-sync state flags based on actual data
+    const syncedUpdates = stateManager.syncStateFromData();
+    if (syncedUpdates) {
+      console.log(chalk.blue('🔄 Syncing deployment state...'));
+      Object.keys(syncedUpdates).forEach(key => {
+        console.log(chalk.green(`   ✅ Detected completed: ${key}`));
+      });
+      console.log();
+    }
+    
     const deployment = stateManager.getState();
 
     output.step('DataDAO Project Status', `Project: ${deployment.dlpName || 'Unknown'}`);
