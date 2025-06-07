@@ -320,9 +320,16 @@ async function performAutomatedRegistration(deployment, quickMode = false) {
         deployment.state = deployment.state || {};
         deployment.state.dataDAORegistered = true;
 
-        // Save deployment.json immediately
+        // Save deployment.json immediately with error handling
         const deploymentPath = path.join(process.cwd(), 'deployment.json');
-        fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
+        try {
+          fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
+          console.log(chalk.blue(`📝 Saved dlpId ${dlpId} to ${deploymentPath}`));
+        } catch (saveError) {
+          console.error(chalk.red(`❌ Failed to save dlpId to deployment.json: ${saveError.message}`));
+          console.error(chalk.yellow(`Please manually add "dlpId": ${dlpId} to deployment.json`));
+          // Still return true since registration succeeded
+        }
 
         return true;
       } else {
@@ -459,6 +466,8 @@ async function performManualRegistration(deployment) {
   console.log('   - metadata: (optional)');
   console.log('5. Set "Send native VANA" to 1 (click ×10^18 button)');
   console.log('6. Submit the transaction');
+  console.log('7. View the transaction logs for the created dlpId. Track this for later use');
+  console.log('8. Add the dlpId to your deployment.json (ie. "dlpId": 123,)');
   console.log();
 
   const { completed } = await inquirer.prompt([
@@ -606,9 +615,16 @@ async function performManualRegistration(deployment) {
   }
 
   console.log(chalk.green(`✅ dlpId detected: ${dlpId}`));
-  deployment.dlpId = dlpId;
-  deployment.state = deployment.state || {};
-  deployment.state.dataDAORegistered = true;
+  console.log();
+  console.log(chalk.yellow('📝 Manual Registration Complete'));
+  console.log(`Please add the following to your deployment.json file:`);
+  console.log(chalk.cyan(`  "dlpId": ${dlpId},`));
+  console.log(`And update the registration state:`);
+  console.log(chalk.cyan(`  "dataDAORegistered": true`));
+  console.log();
+  console.log(chalk.blue('💡 Or run: npm run status to automatically detect and update'));
+  
+  // Don't automatically update the file - let user handle it manually
   return true;
 }
 
@@ -656,7 +672,14 @@ async function registerDataDAO() {
     deployment.dlpId = existingDlpId;
     deployment.state = deployment.state || {};
     deployment.state.dataDAORegistered = true;
-    fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
+    
+    try {
+      fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
+      console.log(chalk.blue(`📝 Updated deployment.json with dlpId: ${existingDlpId}`));
+    } catch (saveError) {
+      console.error(chalk.red(`❌ Failed to save dlpId to deployment.json: ${saveError.message}`));
+      console.error(chalk.yellow(`Please manually add "dlpId": ${existingDlpId} to deployment.json`));
+    }
 
     console.log();
     console.log(chalk.blue('🎯 Your DataDAO is registered and ready!'));
@@ -778,10 +801,6 @@ async function registerDataDAO() {
   }
 
   if (registrationSuccessful) {
-    // deployment.json already saved in performAutomatedRegistration for auto mode
-    if (registrationMethod === 'manual') {
-      fs.writeFileSync(deploymentPath, JSON.stringify(deployment, null, 2));
-    }
     console.log();
     console.log(chalk.green('✅ DataDAO registration completed!'));
     console.log();

@@ -6,6 +6,7 @@ const { execSync } = require('child_process');
 const { createPublicClient, createWalletClient, http } = require('viem');
 const { privateKeyToAccount } = require('viem/accounts');
 const { moksha } = require('viem/chains');
+const DeploymentStateManager = require('./state-manager');
 
 // Verify we're in the correct directory
 if (!fs.existsSync(path.join(process.cwd(), 'deployment.json'))) {
@@ -162,7 +163,6 @@ async function registerRefinerOnChain(dlpId, refinerName, schemaUrl, refinerUrl,
     console.log(`  name: ${refinerName}`);
     console.log(`  schemaDefinitionUrl: ${schemaUrl}`);
     console.log(`  refinementInstructionUrl: ${refinerUrl}`);
-    console.log(`  publicKey: ${publicKey.slice(0, 20)}...`);
     console.log();
 
     // Estimate gas first
@@ -171,7 +171,7 @@ async function registerRefinerOnChain(dlpId, refinerName, schemaUrl, refinerUrl,
       address: REFINER_REGISTRY_ADDRESS,
       abi: REFINER_REGISTRY_ABI,
       functionName: 'addRefiner',
-      args: [BigInt(dlpId), refinerName, schemaUrl, refinerUrl, publicKey],
+      args: [BigInt(dlpId), refinerName, schemaUrl, refinerUrl],
       account
     });
 
@@ -183,7 +183,7 @@ async function registerRefinerOnChain(dlpId, refinerName, schemaUrl, refinerUrl,
       address: REFINER_REGISTRY_ADDRESS,
       abi: REFINER_REGISTRY_ABI,
       functionName: 'addRefiner',
-      args: [BigInt(dlpId), refinerName, schemaUrl, refinerUrl, publicKey],
+      args: [BigInt(dlpId), refinerName, schemaUrl, refinerUrl],
       gas: gasEstimate
     });
 
@@ -239,6 +239,8 @@ async function registerRefinerOnChain(dlpId, refinerName, schemaUrl, refinerUrl,
  * Deploy Data Refinement component
  */
 async function deployRefiner() {
+  const stateManager = new DeploymentStateManager();
+  
   try {
     console.log(chalk.blue('Preparing Data Refinement component for deployment...'));
 
@@ -246,7 +248,9 @@ async function deployRefiner() {
     const deploymentPath = path.join(process.cwd(), 'deployment.json');
 
     if (!fs.existsSync(deploymentPath)) {
-      console.error(chalk.red('Error: deployment.json not found. Run previous deployment steps first.'));
+      const error = new Error('deployment.json not found. Run previous deployment steps first.');
+      console.error(chalk.red('Error: ' + error.message));
+      stateManager.recordError('refinerConfigured', error);
       process.exit(1);
     }
 
@@ -254,12 +258,16 @@ async function deployRefiner() {
     const deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
 
     if (!deployment.dlpId) {
-      console.error(chalk.red('Error: dlpId not found in deployment.json. Run "npm run register:datadao" first.'));
+      const error = new Error('dlpId not found in deployment.json. Run "npm run register:datadao" first.');
+      console.error(chalk.red('Error: ' + error.message));
+      stateManager.recordError('refinerConfigured', error);
       process.exit(1);
     }
 
     if (!deployment.refinerRepo) {
-      console.error(chalk.red('Error: refinerRepo not found in deployment.json. Run GitHub setup first.'));
+      const error = new Error('refinerRepo not found in deployment.json. Run GitHub setup first.');
+      console.error(chalk.red('Error: ' + error.message));
+      stateManager.recordError('refinerConfigured', error);
       process.exit(1);
     }
 
@@ -354,6 +362,43 @@ async function deployRefiner() {
         // If it doesn't exist, add it
         execSync(`git remote add origin ${deployment.refinerRepo}`, { stdio: 'pipe' });
         console.log(chalk.green('✅ Git remote origin added'));
+      }
+
+      // Pull any existing commits from remote (e.g., from GitHub Actions)
+      try {
+        // First fetch all remote refs
+        execSync('git fetch origin', { stdio: 'pipe' });
+        
+        // Check what branch we're on
+        const currentBranch = execSync('git branch --show-current', { stdio: 'pipe', encoding: 'utf8' }).trim();
+        console.log(chalk.blue(`📋 Current branch: ${currentBranch}`));
+        
+        // Try to merge remote main into current branch
+        try {
+          execSync('git merge origin/main --allow-unrelated-histories', { stdio: 'pipe' });
+          console.log(chalk.green('✅ Synchronized with remote repository'));
+        } catch (mergeError) {
+          // If merge fails, try rebasing
+          try {
+            execSync('git rebase origin/main', { stdio: 'pipe' });
+            console.log(chalk.green('✅ Rebased with remote repository'));
+          } catch (rebaseError) {
+            console.log(chalk.yellow("⚠️ Git merge/rebase failed. You'll need to resolve conflicts manually. Errors:"));
+            console.log(chalk.yellow("  Merge: " + mergeError.message));
+            console.log(chalk.yellow("  Rebase: " + rebaseError.message));
+            console.log();
+          }
+        }
+      } catch (e) {
+        // Might fail if remote is empty or no main branch exists
+        console.log(chalk.yellow('⚠️  Git operations failed with error:'));
+        console.log(chalk.yellow("  " + e.message));
+        console.log(chalk.yellow('You\'ll need to set up manually:'));
+        console.log(chalk.yellow(`   git remote add origin ${deployment.refinerRepo}`));
+        console.log(chalk.yellow(`   git fetch origin`));
+        console.log(chalk.yellow(`   git branch --set-upstream-to origin/main`));
+        console.log(chalk.yellow(`   git pull origin main`));
+        console.log();
       }
 
       // Stage and commit changes
@@ -621,7 +666,6 @@ async function deployRefiner() {
             console.log(`   name: ${refinerName}`);
             console.log(`   schemaDefinitionUrl: ${schemaUrl}`);
             console.log(`   refinementInstructionUrl: ${refinerUrl}`);
-            console.log(`   publicKey: ${encryptionKey}`);
             console.log();
             console.log(chalk.cyan('4. Connect your wallet and submit the transaction'));
             console.log();
@@ -733,7 +777,6 @@ async function deployRefiner() {
         console.log(`  name: ${deployment.dlpName} Refiner`);
         console.log(`  schemaDefinitionUrl: ${schemaUrl}`);
         console.log(`  refinementInstructionUrl: ${refinerUrl}`);
-        console.log(`  publicKey: ${encryptionKey}`);
         console.log();
 
         console.log(chalk.yellow('⚠️  On-chain registration requires manual completion via Vanascan:'));
@@ -748,7 +791,6 @@ async function deployRefiner() {
         console.log(`   name: ${deployment.dlpName} Refiner`);
         console.log(`   schemaDefinitionUrl: ${schemaUrl}`);
         console.log(`   refinementInstructionUrl: ${refinerUrl}`);
-        console.log(`   publicKey: ${encryptionKey}`);
         console.log();
         console.log(chalk.cyan('4. Connect your wallet and submit the transaction'));
         console.log();
@@ -865,6 +907,12 @@ async function deployRefiner() {
 
   } catch (error) {
     console.error(chalk.red('Refiner deployment preparation failed:'), error.message);
+    
+    // Record the error in state for recovery suggestions
+    stateManager.recordError('refinerConfigured', error);
+    
+    console.log();
+    console.log(chalk.yellow('💡 This error has been recorded. Run "npm run status" to see recovery options.'));
     process.exit(1);
   }
 }

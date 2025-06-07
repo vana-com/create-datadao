@@ -225,7 +225,10 @@ async function runProjectScript(projectPath, scriptName) {
  * Collect configuration from user
  */
 async function collectConfiguration(projectName) {
-  console.log('Please provide the following information for your DataDAO:');
+  console.log(chalk.blue('🏛️ DataDAO Configuration'));
+  console.log(chalk.gray('Please provide the following information for your DataDAO:'));
+  console.log(chalk.yellow('💡 These values will be used for smart contracts and cannot be changed later'));
+  console.log();
 
   // Generate smart defaults based on project name
   const defaultDataDAOName = projectName ? formatDataDAOName(projectName) : 'MyDataDAO';
@@ -238,7 +241,20 @@ async function collectConfiguration(projectName) {
       name: 'dlpName',
       message: 'DataDAO name:',
       default: defaultDataDAOName,
-      validate: (input) => input.trim() !== '' || 'DataDAO name is required'
+      validate: async (input) => {
+        if (input.trim() === '') return 'DataDAO name is required';
+        
+        // Check name availability
+        console.log(chalk.blue(`\n🔍 Checking availability of "${input.trim()}"...`));
+        const nameCheck = await checkDlpNameAvailability(input.trim());
+        
+        if (!nameCheck.available) {
+          return `DataDAO name "${input.trim()}" is already taken (dlpId: ${nameCheck.existingId}). Please choose a different name.`;
+        }
+        
+        console.log(chalk.green(`✅ "${input.trim()}" is available!`));
+        return true;
+      }
     },
     {
       type: 'input',
@@ -250,9 +266,16 @@ async function collectConfiguration(projectName) {
     {
       type: 'input',
       name: 'tokenSymbol',
-      message: 'Token symbol:',
+      message: 'Token symbol (3-5 characters recommended):',
       default: defaultTokenSymbol,
-      validate: (input) => input.trim() !== '' || 'Token symbol is required'
+      validate: (input) => {
+        if (input.trim() === '') return 'Token symbol is required';
+        if (input.trim().length < 2) return 'Token symbol should be at least 2 characters';
+        if (input.trim().length > 10) return 'Token symbol should be 10 characters or less';
+        if (!/^[A-Za-z0-9]+$/.test(input.trim())) return 'Token symbol should contain only letters and numbers';
+        return true;
+      },
+      filter: (input) => input.trim().toUpperCase()
     }
   ]);
 
@@ -485,37 +508,6 @@ async function createDataDAO(projectName, options = {}) {
   if (fs.existsSync(targetDir)) {
     console.error(chalk.red(`Directory ${projectName} already exists!`));
     process.exit(1);
-  }
-
-  // EARLY CHECK: Verify DLP name is available BEFORE doing any expensive operations
-  const dlpName = formatDataDAOName(projectName);
-  console.log(chalk.blue('🔍 Checking DataDAO name availability...'));
-  console.log(chalk.gray(`   Checking if "${dlpName}" is already taken...`));
-  
-  const nameCheck = await checkDlpNameAvailability(dlpName);
-  
-  if (!nameCheck.available) {
-    console.log();
-    console.error(chalk.red(`❌ DataDAO name "${dlpName}" is already taken (dlpId: ${nameCheck.existingId})`));
-    console.error(chalk.yellow('   You need to choose a different name for your DataDAO.'));
-    console.log();
-
-    recoverySteps = [
-      `Check existing DataDAO names: https://moksha.vanascan.io/address/${DLP_REGISTRY_ADDRESS}`,
-      'Retry DataDAO creation with a unique DataDAO name'
-    ];
-
-    // Display recovery steps
-    console.error(chalk.cyan('\n📋 Next Steps:'));
-    recoverySteps.forEach((step, index) => {
-      console.error(chalk.white(`${index + 1}. ${step}`));
-    });
-    console.log();
-
-    process.exit(1);
-  } else {
-    console.log(chalk.green('✅ DataDAO name is available!'));
-    console.log();
   }
 
   try {
@@ -764,12 +756,66 @@ async function createDataDAOQuick(projectName) {
       }
     ]);
 
+    // Get DataDAO configuration with smart defaults
+    console.log(chalk.blue('🏛️ DataDAO Configuration'));
+    console.log(chalk.gray('Customize your DataDAO details or use the suggested defaults:'));
+    console.log(chalk.yellow('💡 These values will be written onchain and cannot be changed later'));
+    console.log();
+
+    const defaultDlpName = formatDataDAOName(projectName);
+    const defaultTokenName = formatTokenName(projectName);
+    const defaultTokenSymbol = formatTokenSymbol(projectName);
+
+    const dataDAOConfig = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'dlpName',
+        message: 'DataDAO name:',
+        default: defaultDlpName,
+        validate: async (input) => {
+          if (input.trim() === '') return 'DataDAO name is required';
+          
+          // Check name availability
+          console.log(chalk.blue(`\n🔍 Checking availability of "${input.trim()}"...`));
+          const nameCheck = await checkDlpNameAvailability(input.trim());
+          
+          if (!nameCheck.available) {
+            return `DataDAO name "${input.trim()}" is already taken (dlpId: ${nameCheck.existingId}). Please choose a different name.`;
+          }
+          
+          console.log(chalk.green(`✅ "${input.trim()}" is available!`));
+          return true;
+        }
+      },
+      {
+        type: 'input',
+        name: 'tokenName',
+        message: 'Token name:',
+        default: defaultTokenName,
+        validate: (input) => input.trim() !== '' || 'Token name is required'
+      },
+             {
+         type: 'input',
+         name: 'tokenSymbol',
+         message: 'Token symbol (3-5 characters recommended):',
+         default: defaultTokenSymbol,
+         validate: (input) => {
+           if (input.trim() === '') return 'Token symbol is required';
+           if (input.trim().length < 2) return 'Token symbol should be at least 2 characters';
+           if (input.trim().length > 10) return 'Token symbol should be 10 characters or less';
+           if (!/^[A-Za-z0-9]+$/.test(input.trim())) return 'Token symbol should contain only letters and numbers';
+           return true;
+         },
+         filter: (input) => input.trim().toUpperCase()
+       }
+    ]);
+
     // Minimal config with smart defaults
     const config = {
       projectName: projectName,
-      dlpName: formatDataDAOName(projectName),
-      tokenName: formatTokenName(projectName),
-      tokenSymbol: formatTokenSymbol(projectName),
+      dlpName: dataDAOConfig.dlpName.trim(),
+      tokenName: dataDAOConfig.tokenName.trim(),
+      tokenSymbol: dataDAOConfig.tokenSymbol, // Already filtered to uppercase
       ...wallet,
       githubUsername: servicesConfig.githubUsername,
       pinataApiKey: servicesConfig.pinataApiKey,

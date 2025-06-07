@@ -156,6 +156,13 @@ async function deployUI() {
 
   } catch (error) {
     console.error(chalk.red('UI configuration failed:'), error.message);
+    
+    // Record the error in state for recovery suggestions
+    const stateManager = new DeploymentStateManager();
+    stateManager.recordError('uiConfigured', error);
+    
+    console.log();
+    console.log(chalk.yellow('💡 This error has been recorded. Run "npm run status" to see recovery options.'));
     process.exit(1);
   }
 }

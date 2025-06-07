@@ -3,6 +3,7 @@ const fs = require("fs-extra");
 const path = require("path");
 const chalk = require("chalk");
 const { execSync } = require("child_process");
+const DeploymentStateManager = require('./state-manager');
 
 // Verify we're in the correct directory
 if (!fs.existsSync(path.join(process.cwd(), 'deployment.json'))) {
@@ -103,6 +104,42 @@ function setupGitRepository(deployment) {
         stdio: "pipe",
       });
       console.log(chalk.green("✅ Git remote origin added"));
+    }
+
+    // Pull any existing commits from remote (e.g., from GitHub Actions)
+    try {
+      // First fetch all remote refs
+      execSync("git fetch origin", { stdio: "pipe" });
+      
+      // Check what branch we're on
+      const currentBranch = execSync("git branch --show-current", { stdio: "pipe", encoding: "utf8" }).trim();
+      console.log(chalk.blue(`📋 Current branch: ${currentBranch}`));
+      
+      // Try to merge remote main into current branch
+      try {
+        execSync(`git merge origin/main --allow-unrelated-histories`, { stdio: "pipe" });
+        console.log(chalk.green("✅ Synchronized with remote repository"));
+      } catch (mergeError) {
+        // If merge fails, try rebasing
+        try {
+          execSync(`git rebase origin/main`, { stdio: "pipe" });
+          console.log(chalk.green("✅ Rebased with remote repository"));
+        } catch (rebaseError) {
+          console.log(chalk.yellow("⚠️ Git merge/rebase failed. You'll need to resolve conflicts manually. Errors:"));
+          console.log(chalk.yellow("  Merge: " + mergeError.message));
+          console.log(chalk.yellow("  Rebase: " + rebaseError.message));
+          console.log();
+        }
+      }
+    } catch (e) {
+      console.log(chalk.yellow('⚠️  Git operations failed with error:'));
+      console.log(chalk.yellow("  " + e.message));
+      console.log(chalk.yellow('You\'ll need to set up manually:'));
+      console.log(chalk.yellow(`   git remote add origin ${deployment.refinerRepo}`));
+      console.log(chalk.yellow(`   git fetch origin`));
+      console.log(chalk.yellow(`   git branch --set-upstream-to origin/main`));
+      console.log(chalk.yellow(`   git pull origin main`));
+      console.log();
     }
 
     // Stage and commit changes
@@ -305,6 +342,8 @@ function extractRepoName(proofRepo) {
  * Deploy Proof of Contribution component
  */
 async function deployProof() {
+  const stateManager = new DeploymentStateManager();
+  
   try {
     console.log(
       chalk.blue("Preparing Proof of Contribution for deployment...")
@@ -352,9 +391,9 @@ async function deployProof() {
       try {
         proofUrl = await handleAutomaticDeployment(deployment);
       } catch (error) {
-        // Go back to project root before returning
         process.chdir("..");
-        return;
+        stateManager.recordError('proofConfigured', error);
+        throw error;
       }
     } else if (deploymentChoice === "manual") {
       proofUrl = await handleManualDeployment(deployment);
@@ -411,6 +450,12 @@ async function deployProof() {
       chalk.red("Proof deployment preparation failed:"),
       error.message
     );
+    
+    // Record the error in state for recovery suggestions
+    stateManager.recordError('proofConfigured', error);
+    
+    console.log();
+    console.log(chalk.yellow('💡 This error has been recorded. Run "npm run status" to see recovery options.'));
     process.exit(1);
   }
 }

@@ -129,7 +129,8 @@ async function showStatus() {
         output.nextSteps([
           'Start the UI: cd ui && npm run dev',
           'Visit: http://localhost:3000',
-          'Test the contributor flow'
+          'Test the contributor flow',
+          'Note: If you run into any errors, please check the UI logs for more details'
         ]);
       }
     }
@@ -454,6 +455,7 @@ async function resumeGuidedSetup(stateManager, deployment) {
         console.log();
         console.log(chalk.cyan('1. Create proof repository from: https://github.com/vana-com/vana-satya-proof-template-py'));
         console.log(chalk.cyan('2. Create refiner repository from: https://github.com/vana-com/vana-data-refinement-template'));
+        console.log(chalk.cyan('3. Update deployment.json with the new repository URLs under "proofRepo" and "refinerRepo"'));
         console.log();
 
         const { skipGitHub } = await inquirer.prompt([
@@ -523,7 +525,8 @@ async function resumeGuidedSetup(stateManager, deployment) {
     output.nextSteps([
       'Start the UI: cd ui && npm run dev',
       'Visit: http://localhost:3000',
-      'Test the contributor flow'
+      'Test the contributor flow',
+      'Note: If you run into any errors, please check the UI logs for more details'
     ]);
 
   } catch (error) {

@@ -118,12 +118,41 @@ class DeploymentStateManager {
 
     if (this.state.errors.proofConfigured) {
       suggestions.push({
-        step: 'Proof Configuration',
-        issue: 'Proof of contribution setup failed',
+        step: 'Proof of Contribution',
+        issue: 'Proof system configuration failed',
         solutions: [
-          'Ensure GitHub repository is set up',
+          'Ensure GitHub repository is accessible',
           'Check dlpId is available from registration',
+          'Verify git configuration and permissions',
           'Try again: npm run deploy:proof'
+        ]
+      });
+    }
+
+    if (this.state.errors.refinerConfigured) {
+      suggestions.push({
+        step: 'Data Refiner',
+        issue: 'Refiner configuration failed',
+        solutions: [
+          'Ensure Docker is running (for local schema generation)',
+          'Check Pinata API credentials are valid',
+          'Verify GitHub repository is accessible',
+          'Check encryption key retrieval from blockchain',
+          'Try again: npm run deploy:refiner'
+        ]
+      });
+    }
+
+    if (this.state.errors.uiConfigured) {
+      suggestions.push({
+        step: 'User Interface',
+        issue: 'UI configuration failed',
+        solutions: [
+          'Ensure proof deployment completed (need proofUrl)',
+          'Ensure refiner registration completed (need refinerId)',
+          'Check Google OAuth credentials are valid',
+          'Check Pinata API credentials are valid',
+          'Try again: npm run deploy:ui'
         ]
       });
     }
@@ -138,7 +167,8 @@ class DeploymentStateManager {
     const suggestions = this.getRecoverySuggestions();
     
     if (suggestions.length === 0) {
-      console.log(chalk.green('✅ No errors detected. All steps completed successfully!'));
+      console.log(chalk.blue('ℹ️  No critical errors detected in completed steps.'));
+      console.log(chalk.gray('Note: This only checks for errors, not incomplete steps.'));
       return;
     }
 
