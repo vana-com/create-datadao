@@ -36,8 +36,7 @@ const REFINER_REGISTRY_ABI = [
       {"internalType": "uint256", "name": "dlpId", "type": "uint256"},
       {"internalType": "string", "name": "name", "type": "string"},
       {"internalType": "string", "name": "schemaDefinitionUrl", "type": "string"},
-      {"internalType": "string", "name": "refinementInstructionUrl", "type": "string"},
-      {"internalType": "string", "name": "publicKey", "type": "string"}
+      {"internalType": "string", "name": "refinementInstructionUrl", "type": "string"}
     ],
     "name": "addRefiner",
     "outputs": [],

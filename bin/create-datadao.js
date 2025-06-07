@@ -225,6 +225,7 @@ async function runProjectScript(projectPath, scriptName) {
  * Collect configuration from user
  */
 async function collectConfiguration(projectName) {
+  console.log();
   console.log(chalk.blue('🏛️ DataDAO Configuration'));
   console.log(chalk.gray('Please provide the following information for your DataDAO:'));
   console.log(chalk.yellow('💡 These values will be used for smart contracts and cannot be changed later'));
@@ -719,8 +720,8 @@ async function createDataDAOQuick(projectName) {
     // Collect required external services
     console.log(chalk.blue('🔐 Required Services Setup'));
     console.log(chalk.yellow('These services are required for data collection and storage:'));
-    console.log(chalk.gray('• Pinata: Sign up at https://pinata.cloud'));
-    console.log(chalk.gray('• Google OAuth: Create credentials at https://console.cloud.google.com'));
+    console.log(chalk.gray('• Pinata: Sign up at https://pinata.cloud, create an API key and secret pair, and enable legacy IPFS permissions.'));
+    console.log(chalk.gray('• Google OAuth: Create credentials at https://console.cloud.google.com, and enable the Google Drive API for the project.'));
     console.log();
 
     const servicesConfig = await inquirer.prompt([
@@ -757,6 +758,7 @@ async function createDataDAOQuick(projectName) {
     ]);
 
     // Get DataDAO configuration with smart defaults
+    console.log();
     console.log(chalk.blue('🏛️ DataDAO Configuration'));
     console.log(chalk.gray('Customize your DataDAO details or use the suggested defaults:'));
     console.log(chalk.yellow('💡 These values will be written onchain and cannot be changed later'));
