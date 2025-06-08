@@ -67,7 +67,7 @@ function updateDlpIdInConfig(deployment) {
       chalk.yellow("⚠️  Could not find dlp_id pattern in config file.")
     );
     console.log(
-      chalk.yellow("    Please manually update the dlp_id value to:"),
+      chalk.yellow("    Please manually update the dlp_id value in '" + configPath + "' to:"),
       deployment.dlpId
     );
   } else {
