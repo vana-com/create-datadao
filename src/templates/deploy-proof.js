@@ -3,6 +3,15 @@ const fs = require("fs-extra");
 const path = require("path");
 const chalk = require("chalk");
 const { execSync } = require("child_process");
+const DeploymentStateManager = require('./state-manager');
+
+// Verify we're in the correct directory
+if (!fs.existsSync(path.join(process.cwd(), 'deployment.json'))) {
+  console.error(chalk.red('❌ Error: Must run this command from your DataDAO project directory'));
+  console.error(chalk.yellow('📁 Current directory:'), process.cwd());
+  console.error(chalk.yellow('💡 Try: cd <your-project-name> && npm run deploy:proof'));
+  process.exit(1);
+}
 
 /**
  * Update dlpId in proof configuration file with flexible regex patterns
@@ -58,7 +67,7 @@ function updateDlpIdInConfig(deployment) {
       chalk.yellow("⚠️  Could not find dlp_id pattern in config file.")
     );
     console.log(
-      chalk.yellow("    Please manually update the dlp_id value to:"),
+      chalk.yellow("    Please manually update the dlp_id value in '" + configPath + "' to:"),
       deployment.dlpId
     );
   } else {
@@ -95,6 +104,42 @@ function setupGitRepository(deployment) {
         stdio: "pipe",
       });
       console.log(chalk.green("✅ Git remote origin added"));
+    }
+
+    // Pull any existing commits from remote (e.g., from GitHub Actions)
+    try {
+      // First fetch all remote refs
+      execSync("git fetch origin", { stdio: "pipe" });
+      
+      // Check what branch we're on
+      const currentBranch = execSync("git branch --show-current", { stdio: "pipe", encoding: "utf8" }).trim();
+      console.log(chalk.blue(`📋 Current branch: ${currentBranch}`));
+      
+      // Try to merge remote main into current branch
+      try {
+        execSync(`git merge origin/main --allow-unrelated-histories`, { stdio: "pipe" });
+        console.log(chalk.green("✅ Synchronized with remote repository"));
+      } catch (mergeError) {
+        // If merge fails, try rebasing
+        try {
+          execSync(`git rebase origin/main`, { stdio: "pipe" });
+          console.log(chalk.green("✅ Rebased with remote repository"));
+        } catch (rebaseError) {
+          console.log(chalk.yellow("⚠️ Git merge/rebase failed. You'll need to resolve conflicts manually. Errors:"));
+          console.log(chalk.yellow("  Merge: " + mergeError.message));
+          console.log(chalk.yellow("  Rebase: " + rebaseError.message));
+          console.log();
+        }
+      }
+    } catch (e) {
+      console.log(chalk.yellow('⚠️  Git operations failed with error:'));
+      console.log(chalk.yellow("  " + e.message));
+      console.log(chalk.yellow('You\'ll need to set up manually:'));
+      console.log(chalk.yellow(`   git remote add origin ${deployment.refinerRepo}`));
+      console.log(chalk.yellow(`   git fetch origin`));
+      console.log(chalk.yellow(`   git branch --set-upstream-to origin/main`));
+      console.log(chalk.yellow(`   git pull origin main`));
+      console.log();
     }
 
     // Stage and commit changes
@@ -138,19 +183,24 @@ async function handleAutomaticDeployment(deployment) {
     console.log(chalk.yellow("This usually takes 2-3 minutes."));
     console.log();
 
+    console.log(chalk.yellow("⚠️  IMPORTANT: Wait for the NEW build to complete!"));
+    console.log(chalk.yellow("   Don't use an existing/old release - you need the fresh build."));
+    console.log();
+
     console.log(chalk.cyan("📋 Next steps:"));
     console.log(
       "1. Visit: " + chalk.yellow(`${deployment.proofRepo}/releases`)
     );
-    console.log("2. Find the latest release and copy the .tar.gz URL");
-    console.log("3. Return here and enter the URL below");
+    console.log("2. " + chalk.cyan("WAIT") + " for a new release to appear (with your latest changes)");
+    console.log("3. Copy the .tar.gz URL from the " + chalk.yellow("newest") + " release");
+    console.log("4. Return here and enter the URL below");
 
     // Wait for user to get the URL
     const { proofUrl } = await inquirer.prompt([
       {
         type: "input",
         name: "proofUrl",
-        message: "Enter the .tar.gz URL from GitHub Releases:",
+        message: "Enter the .tar.gz URL from the NEWEST GitHub Release:",
         validate: (input) => {
           if (input.trim() === "") return "Proof URL is required";
           if (!input.includes(".tar.gz"))
@@ -189,14 +239,17 @@ async function handleManualDeployment(deployment) {
   console.log(chalk.yellow("2. Monitor the build:"));
   console.log(chalk.cyan(`   ${deployment.proofRepo}/actions`));
   console.log();
-  console.log(chalk.yellow("3. Get the artifact URL from Releases section"));
+  console.log(chalk.yellow("⚠️  IMPORTANT: Wait for the NEW build to complete!"));
+  console.log(chalk.yellow("   Don't use an existing/old release."));
+  console.log();
+  console.log(chalk.yellow("3. Get the artifact URL from the " + chalk.yellow("newest") + " release in Releases section"));
   console.log();
 
   const { proofUrl } = await inquirer.prompt([
     {
       type: "input",
       name: "proofUrl",
-      message: "Enter the .tar.gz URL when ready:",
+      message: "Enter the .tar.gz URL from the NEWEST release when ready:",
       validate: (input) => {
         if (input.trim() === "") return "Proof URL is required";
         if (!input.includes(".tar.gz"))
@@ -289,6 +342,8 @@ function extractRepoName(proofRepo) {
  * Deploy Proof of Contribution component
  */
 async function deployProof() {
+  const stateManager = new DeploymentStateManager();
+  
   try {
     console.log(
       chalk.blue("Preparing Proof of Contribution for deployment...")
@@ -336,9 +391,9 @@ async function deployProof() {
       try {
         proofUrl = await handleAutomaticDeployment(deployment);
       } catch (error) {
-        // Go back to project root before returning
         process.chdir("..");
-        return;
+        stateManager.recordError('proofConfigured', error);
+        throw error;
       }
     } else if (deploymentChoice === "manual") {
       proofUrl = await handleManualDeployment(deployment);
@@ -395,6 +450,12 @@ async function deployProof() {
       chalk.red("Proof deployment preparation failed:"),
       error.message
     );
+    
+    // Record the error in state for recovery suggestions
+    stateManager.recordError('proofConfigured', error);
+    
+    console.log();
+    console.log(chalk.yellow('💡 This error has been recorded. Run "npm run status" to see recovery options.'));
     process.exit(1);
   }
 }

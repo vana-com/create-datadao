@@ -132,7 +132,7 @@ DLP_NAME=${config.dlpName}
 DLP_PUBLIC_KEY=${config.publicKey}
 DLP_TOKEN_NAME=${config.tokenName}
 DLP_TOKEN_SYMBOL=${config.tokenSymbol}
-DLP_TOKEN_SALT=${config.tokenSymbol}
+DLP_TOKEN_SALT=${config.tokenSymbol}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}
 `;
 
   fs.writeFileSync(path.join(process.cwd(), 'contracts', '.env'), contractsEnv);
@@ -151,6 +151,7 @@ GOOGLE_CLIENT_ID=${config.googleClientId}
 GOOGLE_CLIENT_SECRET=${config.googleClientSecret}
 PINATA_API_KEY=${config.pinataApiKey}
 PINATA_API_SECRET=${config.pinataApiSecret}
+REFINEMENT_ENDPOINT=https://a7df0ae43df690b889c1201546d7058ceb04d21b-8000.dstack-prod5.phala.network
 `;
 
   fs.writeFileSync(path.join(process.cwd(), 'ui', '.env'), uiEnv);

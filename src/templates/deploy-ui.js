@@ -1,7 +1,16 @@
 const fs = require('fs-extra');
 const path = require('path');
-const inquirer = require('inquirer');
 const chalk = require('chalk');
+
+// Verify we're in the correct directory
+if (!fs.existsSync(path.join(process.cwd(), 'deployment.json'))) {
+  console.error(chalk.red('❌ Error: Must run this command from your DataDAO project directory'));
+  console.error(chalk.yellow('📁 Current directory:'), process.cwd());
+  console.error(chalk.yellow('💡 Try: cd <your-project-name> && npm run deploy:ui'));
+  process.exit(1);
+}
+
+const inquirer = require('inquirer');
 const DeploymentStateManager = require('./state-manager');
 
 /**
@@ -105,23 +114,22 @@ async function deployUI() {
     uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_NETWORK_RPC_URL', 'https://rpc.moksha.vana.org');
     uiEnv = updateEnvVar(uiEnv, 'NEXT_PUBLIC_NETWORK_CHAIN_ID', '14800');
 
-    // Add Pinata credentials if available
-    if (deployment.pinataApiKey && deployment.pinataApiSecret) {
-      uiEnv = updateEnvVar(uiEnv, 'PINATA_API_KEY', deployment.pinataApiKey);
-      uiEnv = updateEnvVar(uiEnv, 'PINATA_API_SECRET', deployment.pinataApiSecret);
-    } else {
-      console.log(chalk.yellow('⚠ Pinata credentials not found in deployment.json'));
-      console.log(chalk.yellow('  You may need to add them manually to ui/.env'));
+    // Add Pinata credentials (required)
+    if (!deployment.pinataApiKey || !deployment.pinataApiSecret) {
+      throw new Error('Missing required Pinata credentials in deployment.json. Pinata API key and secret are required for IPFS functionality.');
     }
+    uiEnv = updateEnvVar(uiEnv, 'PINATA_API_KEY', deployment.pinataApiKey);
+    uiEnv = updateEnvVar(uiEnv, 'PINATA_API_SECRET', deployment.pinataApiSecret);
 
-    // Add Google OAuth credentials if available
-    if (deployment.googleClientId && deployment.googleClientSecret) {
-      uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_ID', deployment.googleClientId);
-      uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_SECRET', deployment.googleClientSecret);
-    } else {
-      console.log(chalk.yellow('⚠ Google OAuth credentials not found in deployment.json'));
-      console.log(chalk.yellow('  You may need to set up Google OAuth and add them manually to ui/.env'));
+    // Add Google OAuth credentials (required)
+    if (!deployment.googleClientId || !deployment.googleClientSecret) {
+      throw new Error('Missing required Google OAuth credentials in deployment.json. Google Client ID and secret are required for user authentication.');
     }
+    uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_ID', deployment.googleClientId);
+    uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_SECRET', deployment.googleClientSecret);
+
+    // Add refinement endpoint (hardcoded for now - single server instance)
+    uiEnv = updateEnvVar(uiEnv, 'REFINEMENT_ENDPOINT', 'https://a7df0ae43df690b889c1201546d7058ceb04d21b-8000.dstack-prod5.phala.network');
 
     // Write updated .env file
     fs.writeFileSync(uiEnvPath, uiEnv.trim() + '\n');
@@ -151,6 +159,13 @@ async function deployUI() {
 
   } catch (error) {
     console.error(chalk.red('UI configuration failed:'), error.message);
+    
+    // Record the error in state for recovery suggestions
+    const stateManager = new DeploymentStateManager();
+    stateManager.recordError('uiConfigured', error);
+    
+    console.log();
+    console.log(chalk.yellow('💡 This error has been recorded. Run "npm run status" to see recovery options.'));
     process.exit(1);
   }
 }

@@ -11,7 +11,13 @@
     "README.md"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:unit": "jest __tests__/lib/",
+    "test:integration": "jest __tests__/integration/ --testTimeout=120000",
+    "test:production": "jest __tests__/production/ --testTimeout=300000",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit:watch": "jest __tests__/lib/ --watch"
   },
   "keywords": [
     "vana",
@@ -34,7 +40,43 @@
     "viem": "^2.23.11"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "ganache": "^7.9.1",
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageDirectory": "coverage",
+    "collectCoverageFrom": [
+      "lib/**/*.js",
+      "bin/**/*.js",
+      "src/**/*.js",
+      "!lib/**/*.test.js",
+      "!**/__tests__/**",
+      "!coverage/**",
+      "!node_modules/**"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.test.js",
+      "**/lib/**/*.test.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    },
+    "setupFilesAfterEnv": [
+      "<rootDir>/__tests__/setup.js"
+    ],
+    "clearMocks": true,
+    "resetMocks": true,
+    "restoreMocks": true
   },
   "repository": {
     "type": "git",
