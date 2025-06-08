@@ -262,7 +262,7 @@ GOOGLE_CLIENT_SECRET=your-secret
 
 - **Issues:** https://github.com/vana-com/create-datadao/issues
 - **Docs:** https://docs.vana.org
-- **Discord:** https://discord.gg/vana
+- **Discord:** https://discord.gg/vanabuilders
 
 ## Contributing
 
