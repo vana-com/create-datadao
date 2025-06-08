@@ -147,7 +147,7 @@ async function deployProof() {
     
     // Create proof repository
     const repoName = '${testConfig.dlpName.toLowerCase()}-proof';
-    const templateRepo = 'vana-com/vana-satya-proof-template-py';
+    const templateRepo = 'vana-com/dlp-proof-template';
     
     console.log('Creating proof repository:', repoName);
     execSync(\`gh repo create \${repoName} --template \${templateRepo} --public\`);
@@ -879,7 +879,7 @@ async function ${scriptName.replace('.js', '').replace('-', '')}() {
     }
     
     // Create GitHub repository and configure proof
-    execSync('gh repo create ${config.dlpName.toLowerCase()}-proof --template vana-com/vana-satya-proof-template-py --public');
+    execSync('gh repo create ${config.dlpName.toLowerCase()}-proof --template vana-com/dlp-proof-template --public');
     
     const artifactUrl = 'https://github.com/${config.githubUsername}/${config.dlpName.toLowerCase()}-proof/releases/download/latest/proof.tar.gz';
     

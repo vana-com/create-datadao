@@ -49,7 +49,7 @@ async function cloneRepositories(targetDir) {
 
     // Clone proof repository
     console.log(chalk.blue('Cloning proof of contribution repository...'));
-    await execPromise(`git clone --depth 1 https://github.com/vana-com/vana-satya-proof-template-py.git ${path.join(targetDir, 'proof')}`);
+    await execPromise(`git clone --depth 1 https://github.com/vana-com/dlp-proof-template.git ${path.join(targetDir, 'proof')}`);
 
     // Clone refiner repository
     console.log(chalk.blue('Cloning data refinement repository...'));

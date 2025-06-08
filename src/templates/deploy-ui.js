@@ -128,6 +128,9 @@ async function deployUI() {
     uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_ID', deployment.googleClientId);
     uiEnv = updateEnvVar(uiEnv, 'GOOGLE_CLIENT_SECRET', deployment.googleClientSecret);
 
+    // Add refinement endpoint (hardcoded for now - single server instance)
+    uiEnv = updateEnvVar(uiEnv, 'REFINEMENT_ENDPOINT', 'https://a7df0ae43df690b889c1201546d7058ceb04d21b-8000.dstack-prod5.phala.network');
+
     // Write updated .env file
     fs.writeFileSync(uiEnvPath, uiEnv.trim() + '\n');
     console.log(chalk.green('✓ UI environment configured'));

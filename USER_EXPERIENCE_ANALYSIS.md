@@ -86,7 +86,7 @@ Public Key: 0x2f71238ac576a41cf4f9819520c6d933cdc6e7eacbf79d5efdafff0a65c2714e..
 ### 7. GitHub Setup (Manual)
 **Alfred sees**: Detailed forking instructions for 3 repositories
 **Alfred does**:
-- Forks vana-satya-proof-template-py
+- Forks dlp-proof-template
 - Forks vana-data-refinement-template
 - Forks dlp-ui-template
 - Enables GitHub Actions on each

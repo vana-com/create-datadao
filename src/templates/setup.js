@@ -151,6 +151,7 @@ GOOGLE_CLIENT_ID=${config.googleClientId}
 GOOGLE_CLIENT_SECRET=${config.googleClientSecret}
 PINATA_API_KEY=${config.pinataApiKey}
 PINATA_API_SECRET=${config.pinataApiSecret}
+REFINEMENT_ENDPOINT=https://a7df0ae43df690b889c1201546d7058ceb04d21b-8000.dstack-prod5.phala.network
 `;
 
   fs.writeFileSync(path.join(process.cwd(), 'ui', '.env'), uiEnv);

@@ -396,7 +396,7 @@ async function resumeGuidedSetup(stateManager, deployment) {
             {
               name: `${dlpName.toLowerCase().replace(/\s+/g, '-')}-proof`,
               description: `Proof of Contribution for ${dlpName} DataDAO`,
-              template: 'vana-com/vana-satya-proof-template-py'
+              template: 'vana-com/dlp-proof-template'
             },
             {
               name: `${dlpName.toLowerCase().replace(/\s+/g, '-')}-refiner`,
@@ -453,8 +453,8 @@ async function resumeGuidedSetup(stateManager, deployment) {
         console.log(chalk.yellow('⚠️  Automated GitHub setup not available'));
         console.log('Please set up repositories manually and update deployment.json');
         console.log();
-        console.log(chalk.cyan('1. Create proof repository from: https://github.com/vana-com/vana-satya-proof-template-py'));
-        console.log(chalk.cyan('2. Create refiner repository from: https://github.com/vana-com/vana-data-refinement-template'));
+        console.log(chalk.cyan('1. Create proof repository with: https://github.com/new?template_name=dlp-proof-template&template_owner=vana-com&visibility=public'));
+        console.log(chalk.cyan('2. Create refiner repository from: https://github.com/new?template_name=vana-data-refinement-template&template_owner=vana-com&visibility=public'));
         console.log(chalk.cyan('3. Update deployment.json with the new repository URLs under "proofRepo" and "refinerRepo"'));
         console.log();
 

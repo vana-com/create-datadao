@@ -205,7 +205,7 @@ All progress is saved in `deployment.json`.
 ### Custom Templates
 
 Fork template repositories before creation:
-- Proof: https://github.com/vana-com/vana-satya-proof-template-py
+- Proof: https://github.com/vana-com/dlp-proof-template
 - Refiner: https://github.com/vana-com/vana-data-refinement-template
 
 ### Manual Deployment
