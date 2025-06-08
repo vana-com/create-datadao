@@ -3,6 +3,10 @@ const fs = require("fs-extra");
 const path = require("path");
 const chalk = require("chalk");
 const { execSync } = require("child_process");
+const { createPublicClient, createWalletClient, http } = require('viem');
+const { privateKeyToAccount } = require('viem/accounts');
+const { moksha } = require('viem/chains');
+const { DLP_ABI } = require('../../lib/blockchain');
 const DeploymentStateManager = require('./state-manager');
 
 // Verify we're in the correct directory
@@ -289,6 +293,100 @@ function updateUIEnvironment(deployment) {
 }
 
 /**
+ * Update proof instruction on the DLP contract
+ */
+async function updateDLPProofInstruction(deployment) {
+  console.log(chalk.blue("🔗 Updating proof instruction on DLP contract..."));
+
+  try {
+    // Load private key from contracts/.env
+    const contractsEnvPath = path.join(process.cwd(), 'contracts', '.env');
+    if (!fs.existsSync(contractsEnvPath)) {
+      throw new Error('contracts/.env file not found. Cannot access private key for contract update.');
+    }
+
+    const contractsEnv = fs.readFileSync(contractsEnvPath, 'utf8');
+    const privateKeyMatch = contractsEnv.match(/DEPLOYER_PRIVATE_KEY=(.+)/);
+    if (!privateKeyMatch) {
+      throw new Error('DEPLOYER_PRIVATE_KEY not found in contracts/.env');
+    }
+
+    const privateKey = privateKeyMatch[1].trim();
+    const account = privateKeyToAccount(privateKey);
+
+    // Create clients
+    const publicClient = createPublicClient({
+      chain: moksha,
+      transport: http('https://rpc.moksha.vana.org')
+    });
+
+    const walletClient = createWalletClient({
+      account,
+      chain: moksha,
+      transport: http('https://rpc.moksha.vana.org')
+    });
+
+    // Get DLP proxy address
+    const dlpProxyAddress = deployment.proxyAddress ||
+                           (deployment.contracts && deployment.contracts.proxyAddress) ||
+                           deployment.dlpAddress;
+
+    if (!dlpProxyAddress) {
+      throw new Error('DLP proxy address not found in deployment configuration');
+    }
+
+    console.log(`  DLP Contract: ${dlpProxyAddress}`);
+    console.log(`  Proof URL: ${deployment.proofUrl}`);
+    console.log();
+
+    // Update proof instruction on contract
+    console.log(chalk.blue("📝 Submitting transaction to update proof instruction..."));
+    
+    const txHash = await walletClient.writeContract({
+      address: dlpProxyAddress,
+      abi: DLP_ABI,
+      functionName: 'updateProofInstruction',
+      args: [deployment.proofUrl]
+    });
+
+    console.log(chalk.blue(`📝 Transaction submitted: ${txHash}`));
+    console.log(chalk.blue('⏳ Waiting for confirmation...'));
+
+    // Wait for transaction receipt
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    if (receipt.status === 'success') {
+      console.log(chalk.green("✅ Proof instruction updated on DLP contract successfully!"));
+      console.log(chalk.cyan(`   Transaction: https://moksha.vanascan.io/tx/${txHash}`));
+      
+      // Mark this step as completed
+      deployment.state = deployment.state || {};
+      deployment.state.proofInstructionUpdated = true;
+      
+      return true;
+    } else {
+      throw new Error('Transaction failed');
+    }
+
+  } catch (error) {
+    console.log(chalk.red("❌ Failed to update proof instruction on contract:"), error.message);
+    console.log();
+    console.log(chalk.yellow("💡 You can update it manually later:"));
+    console.log(chalk.cyan("1. Go to: https://moksha.vanascan.io/address/" + (deployment.proxyAddress || deployment.dlpAddress) + "?tab=write_proxy"));
+    console.log(chalk.cyan("2. Connect your wallet"));
+    console.log(chalk.cyan("3. Find 'updateProofInstruction' function"));
+    console.log(chalk.cyan("4. Enter proof URL: " + deployment.proofUrl));
+    console.log(chalk.cyan("5. Submit transaction"));
+    console.log();
+    
+    // Don't throw - this is not critical enough to stop the entire process
+    // but log the issue for user awareness
+    console.log(chalk.yellow("⚠️  Continuing with deployment despite contract update failure..."));
+    return false;
+  }
+}
+
+/**
  * Validate deployment configuration
  */
 function validateDeployment() {
@@ -433,6 +531,21 @@ async function deployProof() {
 
     // Update UI environment
     updateUIEnvironment(deployment);
+
+    // Update proof instruction on the DLP contract (only if we have a proof URL)
+    if (deployment.proofUrl) {
+      await updateDLPProofInstruction(deployment);
+    } else {
+      console.log(chalk.yellow("⚠️  No proof URL available, skipping contract update"));
+      console.log();
+      console.log(chalk.yellow("💡 You can update it manually later:"));
+      console.log(chalk.cyan("1. Go to: https://moksha.vanascan.io/address/" + (deployment.proxyAddress || deployment.dlpAddress) + "?tab=write_proxy"));
+      console.log(chalk.cyan("2. Connect your wallet"));
+      console.log(chalk.cyan("3. Find 'updateProofInstruction' function"));
+      console.log(chalk.cyan("4. Enter proof URL: " + deployment.proofUrl));
+      console.log(chalk.cyan("5. Submit transaction"));
+      console.log();
+    }
 
     console.log();
     console.log(
