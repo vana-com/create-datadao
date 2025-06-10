@@ -19,11 +19,14 @@ const { checkPrerequisites } = require('../lib/prerequisites');
 const { program } = require('commander');
 const { DLP_REGISTRY_ABI, DLP_REGISTRY_ADDRESS } = require('../lib/blockchain');
 
+// Read version from package.json dynamically
+const packageJson = require('../package.json');
+
 // Define CLI command
 program
   .name('create-datadao')
   .description('Create and manage DataDAO projects on the Vana network')
-  .version('1.1.1');
+  .version(packageJson.version);
 
 // Main create command
 program
