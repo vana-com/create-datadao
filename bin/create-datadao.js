@@ -23,7 +23,7 @@ const { DLP_REGISTRY_ABI, DLP_REGISTRY_ADDRESS } = require('../lib/blockchain');
 program
   .name('create-datadao')
   .description('Create and manage DataDAO projects on the Vana network')
-  .version('1.0.0');
+  .version('1.1.1');
 
 // Main create command
 program

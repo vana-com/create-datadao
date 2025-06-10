@@ -1,6 +1,3 @@
-# Source code (keep only the built files)
-src/
-
 # Configuration files
 .eslintrc.*
 .prettierrc*
