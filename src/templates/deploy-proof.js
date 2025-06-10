@@ -6,8 +6,18 @@ const { execSync } = require("child_process");
 const { createPublicClient, createWalletClient, http } = require('viem');
 const { privateKeyToAccount } = require('viem/accounts');
 const { moksha } = require('viem/chains');
-const { DLP_ABI } = require('../../lib/blockchain');
 const DeploymentStateManager = require('./state-manager');
+
+// DLP contract ABI (not in /lib for self-contained template script)
+const DLP_ABI = [
+  {
+    "inputs": [{"internalType": "string", "name": "newProofInstruction", "type": "string"}],
+    "name": "updateProofInstruction",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+];
 
 // Verify we're in the correct directory
 if (!fs.existsSync(path.join(process.cwd(), 'deployment.json'))) {
