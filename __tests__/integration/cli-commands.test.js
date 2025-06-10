@@ -735,7 +735,7 @@ async function runCLICommand(args, projectDir = process.cwd()) {
       return executeScript('status.js', projectDir);
 
     case 'resume':
-      const StateManager = require('../../src/templates/state-manager');
+      const StateManager = require('../../lib/templates/state-manager');
       const stateManager = new StateManager(projectDir);
       const nextStep = stateManager.getNextIncompleteStep();
       

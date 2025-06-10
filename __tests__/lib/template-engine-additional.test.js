@@ -28,7 +28,7 @@ describe('TemplateEngine - Additional Coverage', () => {
   describe('constructor - edge cases', () => {
     test('uses default templateDir when none provided', () => {
       const engine = new TemplateEngine();
-      expect(engine.templatesDir).toBe(path.join(__dirname, '..', '..', 'lib', '..', 'src', 'templates'));
+      expect(engine.templatesDir).toBe(path.join(__dirname, '..', '..', 'lib', 'templates'));
     });
 
     test('uses provided templateDir when specified', () => {

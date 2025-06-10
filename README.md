@@ -312,14 +312,13 @@ create-datadao/
 ├── bin/
 │   └── create-datadao.js          # CLI entry point
 ├── lib/
-│   ├── generator.js               # Project template generation
+│   └── templates/                 # Script templates for generated projects
 │   ├── config.js                  # Configuration management
+│   └── formatting.js              # String formatting helpers
+│   ├── generator.js               # Project template generation
+│   ├── index.js                   # Core generator logic
 │   ├── wallet.js                  # Blockchain wallet utilities
 │   ├── validation.js              # Input validation
-│   └── formatting.js              # String formatting helpers
-├── src/
-│   ├── index.js                   # Core generator logic
-│   └── templates/                 # Script templates for generated projects
 ├── __tests__/
 │   ├── lib/                       # Unit tests
 │   ├── integration/               # Integration tests

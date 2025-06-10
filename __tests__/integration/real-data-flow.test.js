@@ -186,7 +186,7 @@ DataLiquidityPoolProxy deployed to: 0x129E6540D19c1b48B11Ba6fae9CF4dc45dfB892A
   });
   
   test('status command validates contract addresses correctly', () => {
-    const StateManager = require('../../src/templates/state-manager');
+    const StateManager = require('../../lib/templates/state-manager');
     
     // Test case 1: New format with contracts object
     const deployment1 = {

@@ -54,7 +54,6 @@
     "collectCoverageFrom": [
       "lib/**/*.js",
       "bin/**/*.js",
-      "src/**/*.js",
       "!lib/**/*.test.js",
       "!**/__tests__/**",
       "!coverage/**",

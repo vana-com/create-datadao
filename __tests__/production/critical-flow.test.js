@@ -7,7 +7,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const generator = require('../../lib/generator');
-const StateManager = require('../../src/templates/state-manager');
+const StateManager = require('../../lib/templates/state-manager');
 const TemplateEngine = require('../../lib/template-engine');
 
 describe.skip('Production Readiness', () => {
@@ -27,7 +27,7 @@ describe.skip('Production Readiness', () => {
   test('Critical Data Integrity', () => {
     // Test 1: Contract addresses are parsed correctly
     const deployScript = fs.readFileSync(
-      path.join(__dirname, '../../src/templates/deploy-contracts.js.template'),
+      path.join(__dirname, '../../lib/templates/deploy-contracts.js.template'),
       'utf8'
     );
     
@@ -42,7 +42,7 @@ describe.skip('Production Readiness', () => {
     
     // Test 2: Registration uses correct proxy address
     const registerScript = fs.readFileSync(
-      path.join(__dirname, '../../src/templates/register-datadao.js.template'),
+      path.join(__dirname, '../../lib/templates/register-datadao.js.template'),
       'utf8'
     );
     
@@ -53,7 +53,7 @@ describe.skip('Production Readiness', () => {
     
     // Test 3: State validation handles both formats
     const stateManagerScript = fs.readFileSync(
-      path.join(__dirname, '../../src/templates/state-manager.js'),
+      path.join(__dirname, '../../lib/templates/state-manager.js'),
       'utf8'
     );
     
@@ -64,7 +64,7 @@ describe.skip('Production Readiness', () => {
   test('Error Recovery Mechanisms', () => {
     // Test 1: Deploy contracts has comprehensive error handling
     const deployScript = fs.readFileSync(
-      path.join(__dirname, '../../src/templates/deploy-contracts.js.template'),
+      path.join(__dirname, '../../lib/templates/deploy-contracts.js.template'),
       'utf8'
     );
     
@@ -86,7 +86,7 @@ describe.skip('Production Readiness', () => {
     
     // Test 2: Registration has comprehensive error handling
     const registerScript = fs.readFileSync(
-      path.join(__dirname, '../../src/templates/register-datadao.js.template'),
+      path.join(__dirname, '../../lib/templates/register-datadao.js.template'),
       'utf8'
     );
     
@@ -138,7 +138,7 @@ describe.skip('Production Readiness', () => {
   test('User Experience Validation', () => {
     // Test 1: Status messages are clear and helpful
     const statusScript = fs.readFileSync(
-      path.join(__dirname, '../../src/templates/status.js'),
+      path.join(__dirname, '../../lib/templates/status.js'),
       'utf8'
     );
     
@@ -148,7 +148,7 @@ describe.skip('Production Readiness', () => {
     
     // Test 2: Error messages guide users to solutions
     const deployScript = fs.readFileSync(
-      path.join(__dirname, '../../src/templates/deploy-contracts.js.template'),
+      path.join(__dirname, '../../lib/templates/deploy-contracts.js.template'),
       'utf8'
     );
     

@@ -10,7 +10,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { generateProject } = require('../../lib/generator');
 const TemplateEngine = require('../../lib/template-engine');
-const StateManager = require('../../src/templates/state-manager');
+const StateManager = require('../../lib/templates/state-manager');
 const { validateConfig } = require('../../lib/validation');
 
 // Test timeout for long-running operations
