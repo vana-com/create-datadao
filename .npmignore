@@ -1,26 +1,20 @@
-# Source code (keep only the built files)
-src/
+# Test files and coverage
+**/__tests__/**
+**/*.test.js
+**/*.spec.js
+coverage/
+.nyc_output/
 
-# Configuration files
+# Development files
 .eslintrc.*
 .prettierrc*
-.gitignore
-.gitattributes
+jest.config.js
 
 # CI/CD
 .github/
 .circleci/
 .gitlab-ci.yml
 .travis.yml
-
-# Development files
-node_modules/
-coverage/
-.nyc_output/
-*.log
-.DS_Store
-.env
-.env.*
 
 # Editor directories and files
 .vscode/
@@ -31,12 +25,18 @@ coverage/
 *.sln
 *.sw?
 
+# Environment and logs
+.env
+.env.*
+*.log
+.DS_Store
+
+# Node modules (should be installed on user's machine)
+node_modules/
+
+# Configuration files
+.gitignore
+.gitattributes
+
 # Documentation that's not needed in package
 USER_EXPERIENCE_ANALYSIS.md
-
-# Test files
-test/
-tests/
-__tests__/
-*.test.js
-*.spec.js
