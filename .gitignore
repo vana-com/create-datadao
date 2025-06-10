@@ -46,6 +46,6 @@ __pycache__/
 .Python
 env/
 !env/*.env.template
-!src/templates/env/
+!lib/templates/env/
 venv/
 /ENV/

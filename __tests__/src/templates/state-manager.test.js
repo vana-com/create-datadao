@@ -7,7 +7,7 @@ const fs = require('fs-extra');
 const path = require('path');
 
 // We'll test the actual state manager from the templates
-const DeploymentStateManager = require('../../../src/templates/state-manager');
+const DeploymentStateManager = require('../../../lib/templates/state-manager');
 
 describe('StateManager - dlpId Persistence', () => {
   let testDir;

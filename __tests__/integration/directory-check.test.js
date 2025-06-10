@@ -19,7 +19,7 @@ describe.skip('Directory Check Integration', () => {
   
   test('deploy-proof script fails when not in project directory', async () => {
     // Copy deploy-proof script to test directory
-    const sourceScript = path.join(__dirname, '../../src/templates/deploy-proof.js');
+    const sourceScript = path.join(__dirname, '../../lib/templates/deploy-proof.js');
     const testScript = path.join(TEST_DIR, 'deploy-proof.js');
     await fs.copy(sourceScript, testScript);
     
@@ -33,7 +33,7 @@ describe.skip('Directory Check Integration', () => {
   });
   
   test('deploy-refiner script fails when not in project directory', async () => {
-    const sourceScript = path.join(__dirname, '../../src/templates/deploy-refiner.js');
+    const sourceScript = path.join(__dirname, '../../lib/templates/deploy-refiner.js');
     const testScript = path.join(TEST_DIR, 'deploy-refiner.js');
     await fs.copy(sourceScript, testScript);
     
@@ -46,7 +46,7 @@ describe.skip('Directory Check Integration', () => {
   });
   
   test('deploy-ui script fails when not in project directory', async () => {
-    const sourceScript = path.join(__dirname, '../../src/templates/deploy-ui.js');
+    const sourceScript = path.join(__dirname, '../../lib/templates/deploy-ui.js');
     const testScript = path.join(TEST_DIR, 'deploy-ui.js');
     await fs.copy(sourceScript, testScript);
     
@@ -67,7 +67,7 @@ describe.skip('Directory Check Integration', () => {
     await fs.writeJson(path.join(TEST_DIR, 'deployment.json'), deploymentJson);
     
     // Test deploy-proof (it will fail at later steps but not at directory check)
-    const sourceScript = path.join(__dirname, '../../src/templates/deploy-proof.js');
+    const sourceScript = path.join(__dirname, '../../lib/templates/deploy-proof.js');
     const testScript = path.join(TEST_DIR, 'deploy-proof.js');
     await fs.copy(sourceScript, testScript);
     

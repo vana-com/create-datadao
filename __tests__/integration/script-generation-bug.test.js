@@ -9,18 +9,18 @@ const path = require('path');
 describe('Script Generation Bug', () => {
   test('register-datadao.js template exists but is not being used', () => {
     // The template file exists
-    const templatePath = path.join(__dirname, '../../src/templates/register-datadao.js.template');
+    const templatePath = path.join(__dirname, '../../lib/templates/register-datadao.js.template');
     expect(fs.existsSync(templatePath)).toBe(true);
     
     // But src/index.js tries to copy register-datadao.js (without .template)
-    const incorrectPath = path.join(__dirname, '../../src/templates/register-datadao.js');
+    const incorrectPath = path.join(__dirname, '../../lib/templates/register-datadao.js');
     expect(fs.existsSync(incorrectPath)).toBe(false);
     
     // This proves the bug: src/index.js is trying to copy a file that doesn't exist
   });
   
   test('template file contains placeholder variables that need processing', () => {
-    const templatePath = path.join(__dirname, '../../src/templates/register-datadao.js.template');
+    const templatePath = path.join(__dirname, '../../lib/templates/register-datadao.js.template');
     const templateContent = fs.readFileSync(templatePath, 'utf8');
     
     // Template should contain placeholders that need variable substitution
